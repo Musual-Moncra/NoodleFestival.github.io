@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="vi" data-theme="dark" data-palette="orange">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mì Gói Festival 2026</title>
+  <meta name="description" content="MÌ GÓI FESTIVAL – Unbox Your Noodle World. 16.12.2026 tại Đại học Hoa Sen, cơ sở Thành Thái. (Bản demo bố cục)">
+  <script>
+    (function () {
+      const root = document.documentElement;
+      let t = null, p = null;
+      try { t = localStorage.getItem('mgf-theme'); p = localStorage.getItem('mgf-palette'); } catch (e) {}
+      if (t !== 'dark' && t !== 'light') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      if (p !== 'orange' && p !== 'green' && p !== 'pink') p = 'orange';
+      root.dataset.theme = t;
+      root.dataset.palette = p;
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Be+Vietnam+Pro:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/sections.css">
+  <link rel="stylesheet" href="css/holo.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a href="#top" class="logo text-fire">MÌ GÓI FEST</a>
+      <nav class="site-nav" id="siteNav" aria-label="Chính">
+        <ul>
+          <li><a href="#about">Giới thiệu</a></li>
+          <li><a href="#flavors">Hương vị</a></li>
+          <li><a href="#activities">Hoạt động</a></li>
+          <li><a href="#schedule">Lịch trình</a></li>
+          <li><a href="#tickets">Vé</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <div class="palette-switch" role="group" aria-label="Màu chủ đạo">
+          <button type="button" data-palette-option="orange" aria-pressed="true" aria-label="Cam" title="Cam"></button>
+          <button type="button" data-palette-option="green" aria-pressed="false" aria-label="Xanh lá" title="Xanh lá"></button>
+          <button type="button" data-palette-option="pink" aria-pressed="false" aria-label="Hồng" title="Hồng"></button>
+        </div>
+        <button class="icon-btn" id="themeToggle" aria-label="Đổi giao diện sáng/tối">◐</button>
+        <a href="#tickets" class="btn btn-primary">Đăng ký</a>
+        <button class="icon-btn" id="navToggle" aria-label="Mở menu" aria-controls="siteNav" aria-expanded="false">☰</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Side 3D models: js/side3d.js. Each section declares which model shows in the left/right gutter. -->
+  <div id="side-stage" aria-hidden="true"></div>
+
+  <main>
+    <!-- HERO -->
+    <section class="hero" id="top">
+      <div id="hero-canvas" aria-hidden="true"></div>
+      <div class="hero-content container">
+        <div>
+          <span class="eyebrow">16.12.2026 · 08:00–22:00 · ĐH Hoa Sen – Thành Thái</span>
+          <h1 class="hero-title text-fire">MÌ GÓI<br>FESTIVAL</h1>
+          <p class="hero-sub">Unbox Your Noodle World — <strong>Mì Gì Cũng Được!</strong></p>
+        </div>
+        <div>
+          <div class="countdown" data-countdown="2026-12-16T08:00:00+07:00">
+            <div><b data-unit="days">00</b><span>Ngày</span></div>
+            <div><b data-unit="hours">00</b><span>Giờ</span></div>
+            <div><b data-unit="mins">00</b><span>Phút</span></div>
+            <div><b data-unit="secs">00</b><span>Giây</span></div>
+          </div>
+          <div class="hero-cta">
+            <a href="#tickets" class="btn btn-primary">Đăng ký tham gia</a>
+            <a href="#about" class="btn btn-ghost">Khám phá lễ hội</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>🍜 Mở gói mì, mở ra thế giới</span><span>🎨 My Cup Noodles</span><span>🌶️ Spicy Noodle Championship</span><span>🎶 Gala âm nhạc đêm</span>
+        <span>🍜 Mở gói mì, mở ra thế giới</span><span>🎨 My Cup Noodles</span><span>🌶️ Spicy Noodle Championship</span><span>🎶 Gala âm nhạc đêm</span>
+      </div>
+    </div>
+
+    <!-- ABOUT -->
+    <section class="section about" id="about" data-side-left="cup" data-side-right="pack">
+      <div class="container about-grid">
+        <div class="reveal">
+          <span class="eyebrow">Về lễ hội</span>
+          <h2 class="section-title">Mì gói — thế giới <span class="text-fire">sáng tạo</span> không giới hạn</h2>
+          <p class="lead">Một ngày lễ hội trải nghiệm quanh món ăn quen thuộc nhất: tự phối, biến tấu, thử thách vị giác và khám phá văn hóa mì gói từ nhiều quốc gia.</p>
+        </div>
+        <div class="stats reveal">
+          <div class="stat holo-card"><b>14h</b><span>Liên tục</span></div>
+          <div class="stat holo-card"><b>8</b><span>Trạm trải nghiệm</span></div>
+          <div class="stat holo-card"><b>4</b><span>Vị sốt DIY</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FLAVORS -->
+    <section class="section flavors" id="flavors" data-side-left="pack" data-side-right="sachet">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="eyebrow">Hương vị</span>
+          <h2 class="section-title">Chọn <span class="text-fire">vị sốt</span> của bạn</h2>
+          <p class="lead">Bốn vị sốt cho ly mì độc bản tại trạm My Cup Noodles.</p>
+        </div>
+        <div class="pack-grid">
+          <article class="pack holo-card reveal" style="--pack:var(--red)"><div class="pack-art"><span>TOM YUM</span></div><h3>Tom Yum</h3><p>Chua cay kiểu Thái.</p></article>
+          <article class="pack holo-card reveal" style="--pack:var(--orange)"><div class="pack-art"><span>BÒ CAY</span></div><h3>Bò Cay</h3><p>Đậm đà, nồng ấm.</p></article>
+          <article class="pack holo-card reveal" style="--pack:var(--amber)"><div class="pack-art"><span>PHÔ MAI</span></div><h3>Phô Mai</h3><p>Béo ngậy, kéo sợi.</p></article>
+          <article class="pack holo-card reveal" style="--pack:var(--gold)"><div class="pack-art"><span>TƯƠNG ĐEN</span></div><h3>Tương Đen</h3><p>Ngọt mặn kiểu Hàn.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ACTIVITIES -->
+    <section class="section activities" id="activities" data-side-left="chopsticks" data-side-right="pack">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="eyebrow">Hoạt động</span>
+          <h2 class="section-title">Bốn khu <span class="text-fire">trải nghiệm</span></h2>
+        </div>
+        <div class="zone-grid">
+          <article class="zone holo-card reveal"><span class="zone-icon">🎨</span><h3>My Cup Noodles</h3><p>Tự trang trí ly mì, chọn vắt mì, sốt và topping rồi mang về làm kỷ niệm.</p></article>
+          <article class="zone holo-card reveal"><span class="zone-icon">🧋</span><h3>Topping Quái Chiêu</h3><p>Trân châu, phô mai, bơ đậu phộng… mix tuỳ thích vào bát mì nóng.</p></article>
+          <article class="zone holo-card reveal"><span class="zone-icon">🌶️</span><h3>Thử thách & Mini-game</h3><p>Gắp mì đũa 1 m, Blind Taste Test và vòng loại Spicy Challenge.</p></article>
+          <article class="zone holo-card reveal"><span class="zone-icon">📸</span><h3>Tô Mì Không Trọng Lực</h3><p>Photo booth với ly mì khổng lồ 2 m và đôi đũa lơ lửng.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- GALLERY: client-supplied photos (assets/img). Replace files, keep names, to swap images. -->
+    <section class="section gallery" id="gallery" data-side-left="cup" data-side-right="bowl">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="eyebrow">Không gian lễ hội</span>
+          <h2 class="section-title">Bước vào <span class="text-fire">thế giới mì</span></h2>
+        </div>
+        <div class="gallery-grid">
+          <figure class="shot shot-wide holo-card reveal">
+            <img src="assets/img/ly-mi-check-in.webp" width="1200" height="675" loading="lazy" alt="Mô hình ly mì khổng lồ tại khu check-in">
+            <figcaption>Ly mì khổng lồ 2 m — khu check-in</figcaption>
+          </figure>
+          <figure class="shot holo-card reveal">
+            <img src="assets/img/gian-hang-tro-choi.webp" width="1216" height="860" loading="lazy" alt="Gian hàng trò chơi trang trí nhiều màu">
+            <figcaption>Trạm trải nghiệm & mini-game</figcaption>
+          </figure>
+          <figure class="shot holo-card reveal">
+            <img src="assets/img/poster-to-mi.webp" width="1024" height="1024" loading="lazy" alt="Poster tô mì phong cách pop-art">
+            <figcaption>Ấn phẩm phong cách pop-art</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCHEDULE -->
+    <section class="section schedule" id="schedule" data-side-left="brick" data-side-right="pack">
+      <div class="container narrow">
+        <div class="section-head reveal">
+          <span class="eyebrow">Lịch trình · 16.12</span>
+          <h2 class="section-title">Một ngày <span class="text-fire">không nguội</span></h2>
+        </div>
+        <ol class="timeline">
+          <li class="reveal"><time>08:00</time><div><h3>Khai mạc</h3><p>Kick-off tháp ly mì khổng lồ.</p></div></li>
+          <li class="reveal"><time>10:00</time><div><h3>Workshop "Biến tấu mì gói"</h3><p>Ca sáng 10:00 · ca chiều 14:30.</p></div></li>
+          <li class="reveal"><time>15:30</time><div><h3>Spicy Noodle Championship</h3><p>Chung kết thử thách mì cay.</p></div></li>
+          <li class="reveal"><time>18:30</time><div><h3>Gala "Unbox Your Noodle World"</h3><p>Đêm nhạc trên sân khấu chính.</p></div></li>
+          <li class="reveal"><time>21:30</time><div><h3>Trao giải & Bế mạc</h3><p>Tri ân và tiễn khách.</p></div></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- TICKETS -->
+    <section class="section tickets" id="tickets" data-side-left="bowl" data-side-right="sachet">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="eyebrow">Vé · giá dự kiến</span>
+          <h2 class="section-title">Chọn <span class="text-fire">mức cay</span></h2>
+        </div>
+        <div class="ticket-grid">
+          <div class="ticket holo-card reveal"><h3>Cay Nhẹ</h3><p class="price">0đ</p><ul><li>Vào cửa tự do</li><li>Thẻ Passport tích điểm</li></ul><a href="#" class="btn btn-ghost">Đăng ký</a></div>
+          <div class="ticket holo-card reveal is-featured"><span class="badge">Hot nhất</span><h3>Cay Vừa</h3><p class="price">—K</p><ul><li>Combo DIY My Cup Noodles</li><li>Ưu tiên workshop</li></ul><a href="#" class="btn btn-primary">Đăng ký</a></div>
+          <div class="ticket holo-card reveal"><h3>Cay Xé Lưỡi</h3><p class="price">—K</p><ul><li>Khu Gala đêm</li><li>Quà từ nhãn hàng</li></ul><a href="#" class="btn btn-ghost">Đăng ký</a></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section faq" id="faq" data-side-left="pack" data-side-right="cup">
+      <div class="container narrow">
+        <div class="section-head reveal">
+          <span class="eyebrow">FAQ</span>
+          <h2 class="section-title">Hỏi nhanh</h2>
+        </div>
+        <details class="reveal"><summary>Lễ hội diễn ra ở đâu?</summary><p>Sân ngoài trời Đại học Hoa Sen, cơ sở Thành Thái — 7/1 Thành Thái, P. Diên Hồng, TP.HCM.</p></details>
+        <details class="reveal"><summary>Thẻ Passport là gì?</summary><p>Nhận tại cổng check-in, tích điểm qua các trạm để đổi quà.</p></details>
+        <details class="reveal"><summary>Có mất phí vào cửa không?</summary><p>Placeholder — chờ ban tổ chức xác nhận.</p></details>
+      </div>
+    </section>
+
+    <section class="section cta-band">
+      <div class="container reveal">
+        <h2 class="section-title">Sẵn sàng <span class="text-fire">unbox</span>?</h2>
+        <a href="#tickets" class="btn btn-primary">Đăng ký ngay</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <span>© 2026 Mì Gói Festival · Bản demo bố cục</span>
+      <span>Facebook · Instagram · TikTok</span>
+    </div>
+  </footer>
+
+  <!-- 3D: js/hero3d.js + side3d.js + packs3d.js + three, bundled so the page also works from file://.
+       After editing any of them: cd tools && npm run build -->
+  <script src="js/app.bundle.js" defer></script>
+  <script src="js/ui.js" defer></script>
+</body>
+</html>

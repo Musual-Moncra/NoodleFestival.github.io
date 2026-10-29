@@ -1,0 +1,791 @@
+/* ==========================================================================
+   Mì Gói Festival — Section Styles (css/sections.css) — Round 2 (Airy Layout)
+   Tokens strictly from base.css (--red, --orange, --amber, --gold,
+   --grad-fire, --grad-fire-v, --surface, --surface-strong, --border,
+   --text, --text-muted, --glow, --radius, --radius-lg, --ease,
+   --space-section, --space-stack, --space-grid)
+   NO raw hex or rgb/rgba colors — all accent shifts adapt to data-palette.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------- */
+/* Scroll Reveal base states                                                  */
+/* -------------------------------------------------------------------------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity .6s var(--ease), transform .6s var(--ease);
+  will-change: opacity, transform;
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Hero Countdown Timer                                                       */
+/* -------------------------------------------------------------------------- */
+.countdown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 2.5vw, 20px);
+  margin-bottom: clamp(28px, 4vw, 40px);
+  flex-wrap: wrap;
+}
+
+.countdown > div {
+  background: color-mix(in srgb, var(--surface-strong) 85%, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: clamp(12px, 2vw, 18px) clamp(14px, 2.8vw, 26px);
+  min-width: clamp(70px, 16vw, 100px);
+  text-align: center;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--bg) 40%, transparent);
+}
+
+.countdown b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 4vw, 2.5rem);
+  line-height: 1.1;
+  color: var(--gold);
+}
+
+:root[data-theme="light"] .countdown b {
+  background: var(--grad-fire);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.countdown span {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Marquee Fire Band (Airy & Sleek)                                           */
+/* -------------------------------------------------------------------------- */
+.marquee {
+  width: 100%;
+  overflow: hidden;
+  background: var(--grad-fire);
+  box-shadow: var(--glow);
+  transform: skewY(-1deg);
+  margin-block: clamp(24px, 4vw, 40px);
+  padding-block: clamp(10px, 1.5vw, 16px);
+  position: relative;
+  z-index: 10;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  white-space: nowrap;
+  animation: marquee-slide 24s linear infinite;
+}
+
+.marquee-track span {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline: clamp(18px, 4vw, 42px);
+  font-family: var(--font-display);
+  font-size: clamp(0.95rem, 1.8vw, 1.2rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+  text-shadow: 0 1px 3px color-mix(in srgb, var(--bg) 60%, transparent);
+}
+
+:root[data-theme="light"] .marquee-track span {
+  color: var(--text);
+  text-shadow: none;
+}
+
+@keyframes marquee-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Section Headings (Airy, centered, max-width 720px)                        */
+/* -------------------------------------------------------------------------- */
+.section-head {
+  text-align: center;
+  max-width: 720px;
+  margin-inline: auto;
+  margin-bottom: var(--space-stack);
+}
+
+.section-head .lead {
+  margin-inline: auto;
+  margin-top: 14px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* About Grid & Vertical Stats                                                */
+/* -------------------------------------------------------------------------- */
+.about-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: clamp(48px, 8vw, 120px);
+  align-items: center;
+}
+
+.about-grid .lead {
+  margin-bottom: 0;
+}
+
+.stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+}
+
+.stat {
+  border-radius: var(--radius);
+  padding: clamp(22px, 3.2vw, 32px) clamp(24px, 3.5vw, 36px);
+  display: flex;
+  align-items: center;
+  gap: clamp(16px, 2.5vw, 28px);
+  text-align: left;
+}
+
+.stat b {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 4.5vw, 3.6rem);
+  line-height: 1;
+  background: var(--grad-fire);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  min-width: 3ch;
+  flex-shrink: 0;
+}
+
+.stat span {
+  font-size: clamp(1.05rem, 1.6vw, 1.2rem);
+  font-weight: 600;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+@media (max-width: 860px) {
+  .about-grid {
+    grid-template-columns: 1fr;
+    gap: 48px;
+  }
+  .stat {
+    padding: 20px 24px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Flavors Pack Grid & Mock Noodle Pack (.pack-art)                           */
+/* -------------------------------------------------------------------------- */
+.pack-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-grid);
+}
+
+@media (max-width: 1099px) {
+  .pack-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .pack-grid {
+    grid-template-columns: 1fr;
+  }
+  .pack {
+    max-width: 340px;
+    margin-inline: auto;
+    width: 100%;
+  }
+}
+
+.pack {
+  border-radius: var(--radius-lg);
+  padding: clamp(28px, 4vw, 36px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.pack h3 {
+  font-size: clamp(1.2rem, 2vw, 1.4rem);
+  margin: 20px 0 8px;
+  color: var(--text);
+}
+
+.pack p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+/* CSS-only noodle pack mock: balanced scale, pillow shape & crimped seals */
+.pack-art {
+  position: relative;
+  width: 100%;
+  max-width: 145px;
+  aspect-ratio: 3 / 4;
+  margin-inline: auto;
+  border-radius: 14px / 18px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 45% 35%, color-mix(in srgb, var(--pack) 70%, var(--gold)) 0%, transparent 60%),
+    linear-gradient(135deg, var(--pack) 0%, color-mix(in srgb, var(--pack) 70%, var(--bg)) 100%);
+  box-shadow:
+    0 10px 24px -5px color-mix(in srgb, var(--pack) 45%, transparent),
+    inset 0 0 14px color-mix(in srgb, var(--bg) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pack) 65%, var(--border));
+}
+
+/* Crimped heat-sealed top and bottom edges */
+.pack-art::before,
+.pack-art::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--pack) 85%, var(--bg)) 0px,
+    color-mix(in srgb, var(--pack) 85%, var(--bg)) 3px,
+    color-mix(in srgb, var(--pack) 35%, var(--bg)) 3px,
+    color-mix(in srgb, var(--pack) 35%, var(--bg)) 6px
+  );
+  z-index: 2;
+}
+
+.pack-art::before {
+  top: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--pack) 50%, var(--bg));
+}
+
+.pack-art::after {
+  bottom: 0;
+  border-top: 1px solid color-mix(in srgb, var(--pack) 50%, var(--bg));
+}
+
+/* js/packs3d.js swaps the mock for a WebGL pack: drop the mock chrome, give the model room */
+.pack-art.has-3d-pack {
+  max-width: 200px;
+  overflow: visible;
+  background: none;
+  box-shadow: none;
+  border: 0;
+}
+.pack-art.has-3d-pack::before,
+.pack-art.has-3d-pack::after { content: none; }
+
+/* Label text inside noodle pack mock */
+.pack-art span {
+  position: relative;
+  z-index: 3;
+  font-family: var(--font-display);
+  font-size: clamp(0.7rem, 1.2vw, 0.85rem);
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--bg) 50%, transparent);
+  max-width: 84%;
+  word-break: break-word;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Activities 2x2 Zone Grid (.zone-grid)                                      */
+/* -------------------------------------------------------------------------- */
+.zone-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-grid);
+}
+
+.zone {
+  border-radius: var(--radius-lg);
+  padding: clamp(28px, 4vw, 48px);
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.zone-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(44px, 5vw, 56px);
+  height: clamp(44px, 5vw, 56px);
+  font-size: clamp(28px, 3.5vw, 36px);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--orange) 14%, transparent);
+  border: 1px solid var(--border);
+  margin-bottom: 22px;
+}
+
+.zone h3 {
+  font-size: clamp(1.3rem, 2.2vw, 1.65rem);
+  margin: 0 0 12px;
+  color: var(--text);
+}
+
+.zone p {
+  margin: 0;
+  line-height: 1.7;
+  font-size: clamp(0.95rem, 1.4vw, 1.05rem);
+  color: var(--text-muted);
+}
+
+@media (max-width: 768px) {
+  .zone-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Schedule Vertical Glowing Timeline (5 items, spacious)                     */
+/* -------------------------------------------------------------------------- */
+.timeline {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  position: relative;
+}
+
+/* Glowing vertical fire line */
+.timeline::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: clamp(12px, 3vw, 24px);
+  width: 4px;
+  background: var(--grad-fire-v);
+  box-shadow: var(--glow);
+  border-radius: 4px;
+}
+
+.timeline li {
+  position: relative;
+  padding-left: clamp(44px, 7vw, 68px);
+  padding-bottom: clamp(32px, 5vw, 48px);
+}
+
+.timeline li:last-child {
+  padding-bottom: 0;
+}
+
+/* Glowing fire dots */
+.timeline li::before {
+  content: "";
+  position: absolute;
+  left: clamp(8px, 3vw, 20px);
+  top: 10px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 3px solid var(--red);
+  box-shadow: var(--glow);
+  z-index: 2;
+}
+
+.timeline time {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--orange) 16%, transparent);
+  border: 1px solid var(--border);
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+
+:root[data-theme="light"] .timeline time {
+  color: var(--orange);
+}
+
+.timeline li > div {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: clamp(18px, 3vw, 26px);
+  transition: border-color .2s var(--ease);
+}
+
+.timeline li > div:hover {
+  border-color: var(--orange);
+}
+
+.timeline h3 {
+  font-size: clamp(1.15rem, 2.5vw, 1.45rem);
+  margin: 0 0 6px;
+}
+
+.timeline p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ticket Grid & Pricing Cards (Spacious, Equal Heights)                      */
+/* -------------------------------------------------------------------------- */
+.ticket-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-grid);
+  align-items: stretch;
+}
+
+.ticket {
+  position: relative;
+  border-radius: var(--radius-lg);
+  padding: clamp(36px, 4.5vw, 52px) clamp(24px, 3.2vw, 36px);
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+.ticket h3 {
+  font-size: clamp(1.35rem, 2.5vw, 1.65rem);
+  margin: 0 0 12px;
+}
+
+.ticket .price {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 4.5vw, 3.4rem);
+  line-height: 1;
+  margin: 0 0 26px;
+  background: var(--grad-fire);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ticket ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 32px;
+  text-align: left;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ticket li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 0.98rem;
+  line-height: 1.4;
+}
+
+.ticket li::before {
+  content: "✓";
+  color: var(--orange);
+  font-weight: 800;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.ticket .btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: auto;
+}
+
+.ticket.is-featured {
+  background: var(--surface-strong);
+  border-color: var(--orange);
+  box-shadow: var(--glow);
+}
+
+@media (min-width: 992px) {
+  .ticket.is-featured {
+    transform: scale(1.04);
+    z-index: 2;
+  }
+}
+
+.badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: var(--grad-fire);
+  color: var(--text);
+  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 5px 14px;
+  border-radius: 999px;
+  box-shadow: var(--glow);
+  white-space: nowrap;
+  z-index: 4;
+}
+
+:root[data-theme="light"] .badge {
+  color: var(--text);
+}
+
+@media (max-width: 860px) {
+  .ticket-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Narrow Container & FAQ Accordions                                          */
+/* -------------------------------------------------------------------------- */
+.narrow {
+  max-width: 760px;
+  margin-inline: auto;
+}
+
+.faq details {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  overflow: hidden;
+  transition: border-color .2s var(--ease), background .2s var(--ease);
+}
+
+.faq details[open] {
+  border-color: var(--orange);
+  background: var(--surface-strong);
+}
+
+.faq summary {
+  list-style: none;
+  cursor: pointer;
+  padding: clamp(18px, 3vw, 24px);
+  font-weight: 700;
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  user-select: none;
+}
+
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq summary::after {
+  content: "+";
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  color: var(--orange);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: transform .3s var(--ease), background .3s var(--ease), color .3s var(--ease);
+}
+
+.faq details[open] summary::after {
+  transform: rotate(45deg);
+  background: var(--orange);
+  color: var(--bg);
+}
+
+.faq details p {
+  margin: 0;
+  padding: 0 clamp(18px, 3vw, 24px) clamp(18px, 3vw, 24px);
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+/* -------------------------------------------------------------------------- */
+/* CTA Band (Airy on var(--bg-2) with Glowing Fire Border)                    */
+/* -------------------------------------------------------------------------- */
+.cta-band {
+  background: var(--bg-2);
+  padding-block: clamp(80px, 12vw, 140px);
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Fiery glowing accent borders on top and bottom */
+.cta-band::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--grad-fire);
+  box-shadow: var(--glow);
+}
+
+.cta-band::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--grad-fire);
+  box-shadow: var(--glow);
+}
+
+.cta-band .container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(24px, 4vw, 36px);
+}
+
+.cta-band .section-title {
+  margin: 0;
+  color: var(--text);
+}
+
+.cta-band .text-fire {
+  background: var(--grad-fire);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  position: relative;
+  display: inline-block;
+}
+
+.cta-band .text-fire::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 3px;
+  background: var(--grad-fire);
+  border-radius: 2px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Gallery (client photos)                                                    */
+/* -------------------------------------------------------------------------- */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-grid);
+}
+
+.shot {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.shot-wide {
+  grid-column: 1 / -1;
+}
+
+.shot-wide img {
+  aspect-ratio: 16 / 9;
+}
+
+.shot img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+  object-position: center;
+  flex: 1;
+  transition: transform .4s var(--ease);
+}
+
+.shot:hover img {
+  transform: scale(1.03);
+}
+
+.shot:not(.shot-wide) img {
+  aspect-ratio: 4 / 3;
+}
+
+.shot img[src*="poster"] {
+  object-position: center top;
+}
+
+.shot img[src*="gian-hang"] {
+  object-position: 25% center;
+}
+
+.shot figcaption {
+  padding: clamp(14px, 2vw, 18px) clamp(18px, 2.5vw, 24px);
+  font-weight: 600;
+  font-size: clamp(0.92rem, 1.4vw, 1.05rem);
+  color: var(--text);
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 60%, var(--surface-strong));
+}
+
+@media (max-width: 860px) {
+  .gallery-grid {
+    grid-template-columns: 1fr;
+  }
+}

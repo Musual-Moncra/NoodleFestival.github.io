@@ -1,0 +1,185 @@
+/* Mì Gói Festival — tokens, theme, layout primitives
+   Palette: html[data-palette="orange|green|pink"]. The four accent tokens keep their
+   historical names (--red/--orange/--amber/--gold) but mean accent-deep → accent-light. */
+:root, :root[data-palette="orange"] {
+  --red: #E10600;
+  --orange: #FF5A00;
+  --amber: #FFB300;
+  --gold: #FFC800;
+}
+:root[data-palette="green"] {
+  --red: #007A33;
+  --orange: #00B84A;
+  --amber: #6EDB1F;
+  --gold: #C8F000;
+}
+:root[data-palette="pink"] {
+  --red: #C2005A;
+  --orange: #FF0A78;
+  --amber: #FF4FA3;
+  --gold: #FFC800;
+}
+
+:root {
+  --grad-fire: linear-gradient(120deg, var(--red) 0%, var(--orange) 50%, var(--amber) 100%);
+  --grad-fire-v: linear-gradient(180deg, var(--gold) 0%, var(--orange) 55%, var(--red) 100%);
+
+  --font-display: "Bungee", "Be Vietnam Pro", system-ui, sans-serif;
+  --font-body: "Be Vietnam Pro", system-ui, -apple-system, sans-serif;
+
+  --radius: 20px;
+  --radius-lg: 32px;
+  --gutter: clamp(20px, 5vw, 56px);
+  --maxw: 1120px;
+  --side-rail: clamp(0px, (100vw - var(--maxw)) / 2, 360px); /* free gutter for side 3D models */
+  --space-section: clamp(112px, 16vw, 220px);
+  --space-stack: clamp(40px, 6vw, 72px); /* section head → content */
+  --space-grid: clamp(20px, 3vw, 36px);
+  --nav-h: 68px;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* Dark (default) */
+:root, :root[data-theme="dark"] {
+  --bg: color-mix(in srgb, var(--red) 6%, #070302);
+  --bg-2: color-mix(in srgb, var(--red) 12%, #070302);
+  --surface: color-mix(in srgb, var(--orange) 6%, transparent);
+  --surface-strong: color-mix(in srgb, var(--orange) 12%, transparent);
+  --border: color-mix(in srgb, var(--orange) 28%, transparent);
+  --text: color-mix(in srgb, var(--gold) 8%, #FFF8F0);
+  --text-muted: color-mix(in srgb, var(--amber) 55%, #FFFFFF);
+  --glow: 0 0 24px color-mix(in srgb, var(--orange) 55%, transparent), 0 0 60px color-mix(in srgb, var(--red) 35%, transparent);
+  --holo-a: var(--gold);
+  --holo-b: var(--orange);
+  --holo-c: var(--red);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: color-mix(in srgb, var(--amber) 10%, #FFFAF2);
+  --bg-2: color-mix(in srgb, var(--amber) 24%, #FFFAF2);
+  --surface: color-mix(in srgb, var(--red) 5%, transparent);
+  --surface-strong: color-mix(in srgb, var(--red) 11%, transparent);
+  --border: color-mix(in srgb, var(--red) 30%, transparent);
+  --text: color-mix(in srgb, var(--red) 25%, #1A0600);
+  --text-muted: color-mix(in srgb, var(--red) 60%, #3A1000);
+  --glow: 0 0 18px color-mix(in srgb, var(--orange) 45%, transparent), 0 0 40px color-mix(in srgb, var(--red) 25%, transparent);
+  --holo-a: var(--orange);
+  --holo-b: var(--red);
+  --holo-c: color-mix(in srgb, var(--red) 75%, #000);
+  color-scheme: light;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: var(--nav-h); }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  overflow-x: hidden;
+  transition: background .4s var(--ease), color .4s var(--ease);
+}
+img, svg, canvas { display: block; max-width: 100%; }
+a { color: inherit; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.05; margin: 0 0 .5em; letter-spacing: .01em; }
+
+.container { width: 100%; max-width: var(--maxw); margin-inline: auto; padding-inline: var(--gutter); }
+.section { padding-block: var(--space-section); position: relative; }
+.section + .section { padding-top: calc(var(--space-section) * .75); }
+.eyebrow {
+  display: inline-block; font-size: .8rem; font-weight: 700; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--orange); margin-bottom: 12px;
+}
+.text-fire {
+  background: var(--grad-fire); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.section-title { font-size: clamp(2rem, 5vw, 3.5rem); }
+.lead { font-size: clamp(1.05rem, 1.6vw, 1.25rem); line-height: 1.75; color: var(--text-muted); max-width: 52ch; }
+
+/* Palette switcher (behaviour in js/ui.js) */
+.palette-switch { display: flex; gap: 6px; padding: 5px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+.palette-switch button {
+  width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0;
+  background: linear-gradient(135deg, var(--sw-a), var(--sw-b));
+}
+.palette-switch button[aria-pressed="true"] { border-color: var(--text); box-shadow: 0 0 0 2px var(--bg) inset; }
+.palette-switch [data-palette-option="orange"] { --sw-a: #E10600; --sw-b: #FFB300; }
+.palette-switch [data-palette-option="green"] { --sw-a: #007A33; --sw-b: #C8F000; }
+.palette-switch [data-palette-option="pink"] { --sw-a: #C2005A; --sw-b: #FF4FA3; }
+
+/* Side 3D stage (js/side3d.js renders into it) — sits in the free gutters, behind content */
+#side-stage { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+main, .site-footer { position: relative; z-index: 1; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 14px 26px; border-radius: 999px;
+  font-weight: 800; text-decoration: none; border: 2px solid transparent; cursor: pointer;
+  font-family: var(--font-body); font-size: 1rem; transition: transform .2s var(--ease), box-shadow .2s var(--ease);
+}
+.btn:hover { transform: translateY(-2px); }
+.btn-primary { background: var(--grad-fire); color: #fff; box-shadow: var(--glow); }
+.btn-ghost { background: transparent; color: var(--text); border-color: var(--border); }
+
+/* Header */
+.site-header {
+  position: fixed; inset: 0 0 auto 0; height: var(--nav-h); z-index: 50;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+.site-header .container { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.logo { font-family: var(--font-display); font-size: 1.25rem; text-decoration: none; }
+.site-nav ul { display: flex; gap: 24px; list-style: none; margin: 0; padding: 0; }
+.site-nav a { text-decoration: none; font-weight: 600; font-size: .95rem; }
+.site-nav a:hover { color: var(--orange); }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.icon-btn {
+  width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); display: grid; place-items: center; cursor: pointer;
+}
+#navToggle { display: none; }
+@media (max-width: 860px) {
+  #navToggle { display: grid; }
+  .site-nav {
+    position: fixed; inset: var(--nav-h) 0 auto 0; background: var(--bg);
+    border-bottom: 1px solid var(--border); padding: 16px var(--gutter);
+    transform: translateY(-120%); transition: transform .3s var(--ease);
+  }
+  .site-nav.is-open { transform: none; }
+  .site-nav ul { flex-direction: column; gap: 14px; }
+  .header-actions .btn { display: none; }
+  .palette-switch button { width: 22px; height: 22px; }
+}
+.logo { white-space: nowrap; }
+@media (max-width: 480px) {
+  .logo { font-size: 1rem; }
+  .header-actions { gap: 6px; }
+  .palette-switch { gap: 4px; padding: 3px; }
+  .palette-switch button { width: 18px; height: 18px; }
+  .icon-btn { width: 36px; height: 36px; }
+}
+
+/* Hero frame (content styled here; 3D lives in #hero-canvas) */
+.hero {
+  position: relative; min-height: 100svh; display: grid; place-items: center; text-align: center;
+  padding-top: var(--nav-h); overflow: hidden; isolation: isolate;
+  background:
+    radial-gradient(60% 50% at 50% 60%, color-mix(in srgb, var(--orange) 30%, transparent), transparent 70%),
+    var(--bg);
+}
+#hero-canvas { position: absolute; inset: 0; z-index: -1; }
+.hero-content { position: relative; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: space-between; min-height: calc(100svh - var(--nav-h)); padding-block: 32px; }
+.hero-content a, .hero-content button { pointer-events: auto; }
+.hero-title { font-size: clamp(2.4rem, 7vw, 5.5rem); margin: 0; text-shadow: var(--glow); }
+.hero-sub { color: var(--text-muted); font-size: clamp(1rem, 2vw, 1.25rem); margin: 8px 0 0; }
+.hero-cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+/* Footer */
+.site-footer { border-top: 1px solid var(--border); padding-block: 40px; color: var(--text-muted); font-size: .9rem; }
+.site-footer .container { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

@@ -1,0 +1,5 @@
+# build tooling (bundle output js/app.bundle.js IS committed)
+tools/node_modules/
+# internal: agent briefs and review screenshots
+docs/
+.DS_Store
