@@ -7,6 +7,7 @@
  * - IntersectionObserver reveal animations (.reveal -> .is-visible, sibling index transition-delay)
  * - Hologram 3D card tilt & glare (.holo-card pointermove --mx, --my, --rx, --ry, respects pointer & reduced motion)
  * - Site header elevation (.is-scrolled on scroll > 20px)
+ * - Nav scrollspy (highlight the nav link of the section currently in view)
  */
 
 (function () {
@@ -342,5 +343,43 @@
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /* 7. Nav Scrollspy                                                           */
+  /* -------------------------------------------------------------------------- */
+  const navLinks = Array.prototype.slice.call(
+    document.querySelectorAll('.site-nav a[href^="#"]')
+  );
+  const spySections = navLinks
+    .map(function (link) {
+      var id = link.getAttribute('href').slice(1);
+      return document.getElementById(id);
+    })
+    .filter(Boolean);
+
+  if ('IntersectionObserver' in window && spySections.length > 0) {
+    var currentSpyId = null;
+    var spyObserver = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          currentSpyId = entry.target.id;
+          navLinks.forEach(function (link) {
+            var active = link.getAttribute('href') === '#' + currentSpyId;
+            link.classList.toggle('is-active', active);
+          });
+        });
+      },
+      { rootMargin: '-45% 0px -45% 0px', threshold: 0 }
+    );
+    spySections.forEach(function (sec) { spyObserver.observe(sec); });
+
+    window.addEventListener('scroll', function () {
+      if (window.scrollY < 80 && currentSpyId !== null) {
+        currentSpyId = null;
+        navLinks.forEach(function (link) { link.classList.remove('is-active'); });
+      }
+    }, { passive: true });
   }
 })();

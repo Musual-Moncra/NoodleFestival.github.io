@@ -137,17 +137,25 @@
 }
 
 /* -------------------------------------------------------------------------- */
-/* 3D Product Slots (Inside Layout)                                          */
+/* 3D Product Slots — direct children of each <section>, absolute in the      */
+/* side rails. js/side3d.js reads `.product-slot[data-products]` + its rect   */
+/* and renders the model into the fixed #side-stage layer behind content.     */
 /* -------------------------------------------------------------------------- */
 .product-slot {
-  position: relative;
-  width: 100%;
-  height: clamp(280px, 34vw, 440px);
+  position: absolute;
+  top: 50%;
+  width: clamp(150px, 16vw, 320px);
+  height: clamp(240px, 30vw, 460px);
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
+  z-index: 0;
 }
+
+.product-slot.product-left { left: clamp(4px, 1.5vw, 40px); }
+.product-slot.product-right { right: clamp(4px, 1.5vw, 40px); }
 
 /* Stage floor: soft radial glow ellipse at the bottom using --orange at ~25% */
 .product-slot::after {
@@ -156,12 +164,30 @@
   bottom: 6%;
   left: 50%;
   transform: translateX(-50%);
-  width: min(340px, 80%);
-  height: clamp(36px, 8vw, 64px);
+  width: min(300px, 85%);
+  height: clamp(30px, 7vw, 56px);
   border-radius: 50%;
   background: radial-gradient(ellipse at center, color-mix(in srgb, var(--orange) 25%, transparent) 0%, transparent 70%);
   pointer-events: none;
   filter: blur(8px);
+}
+
+/* Mobile: slots shrink, hug the top corners of the section, never cover text */
+@media (max-width: 860px) {
+  .product-slot {
+    top: clamp(56px, 12vw, 96px);
+    transform: none;
+    width: clamp(76px, 20vw, 120px);
+    height: clamp(120px, 30vw, 190px);
+    opacity: .55;
+  }
+  .product-slot.product-left { left: 0; }
+  .product-slot.product-right { right: 0; }
+  .product-slot::after { height: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-slot { opacity: 1 !important; }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -169,9 +195,11 @@
 /* -------------------------------------------------------------------------- */
 .section-head {
   text-align: center;
-  max-width: 720px;
+  max-width: 760px;
   margin-inline: auto;
   margin-bottom: var(--space-stack);
+  position: relative;
+  z-index: 1;
 }
 
 .section-head .lead {
@@ -179,102 +207,15 @@
   margin-top: 14px;
 }
 
-/* 2-column head with embedded 3D product slot */
-.section-head.has-product {
-  max-width: none;
-  width: 100%;
-  display: grid;
-  align-items: center;
-  gap: clamp(24px, 5vw, 72px);
-  text-align: left;
-}
-
-.section-head.has-product.product-right {
-  grid-template-columns: 1.1fr 1fr;
-  grid-template-areas: "copy slot";
-}
-
-.section-head.has-product.product-left {
-  grid-template-columns: 1fr 1.1fr;
-  grid-template-areas: "slot copy";
-}
-
-.section-head.has-product .section-head-copy {
-  grid-area: copy;
-  text-align: left;
-}
-
-.section-head.has-product .section-head-copy .lead {
-  margin-inline: 0;
-  text-align: left;
-}
-
-.section-head.has-product .product-slot {
-  grid-area: slot;
-}
-
-@media (max-width: 860px) {
-  .section-head.has-product,
-  .section-head.has-product.product-right,
-  .section-head.has-product.product-left {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "slot"
-      "copy";
-    gap: 20px;
-    text-align: center;
-  }
-
-  .section-head.has-product .section-head-copy {
-    text-align: center;
-  }
-
-  .section-head.has-product .section-head-copy .lead {
-    margin-inline: auto;
-    text-align: center;
-  }
-
-  .section-head.has-product .product-slot {
-    height: clamp(220px, 60vw, 300px);
-  }
-}
-
 /* -------------------------------------------------------------------------- */
-/* About Grid & 3D Slot Layout                                                */
+/* About: section head + stats band                                           */
 /* -------------------------------------------------------------------------- */
-.about-grid {
-  display: grid;
-  grid-template-columns: 1fr 1.25fr;
-  grid-template-rows: auto auto;
-  grid-template-areas:
-    "slot copy"
-    "slot stats";
-  gap: clamp(20px, 3vw, 36px) clamp(32px, 5vw, 72px);
-  align-items: center;
-}
-
-.about-grid > .product-slot {
-  grid-area: slot;
-  height: clamp(320px, 38vw, 480px);
-  align-self: center;
-}
-
-.about-grid > div:not(.product-slot):not(.stats) {
-  grid-area: copy;
-  text-align: left;
-}
-
-.about-grid > div:not(.product-slot):not(.stats) .lead {
-  margin-inline: 0;
-  text-align: left;
-  margin-bottom: 0;
-}
-
-.about-grid > .stats {
-  grid-area: stats;
+.stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: clamp(12px, 2vw, 20px);
+  max-width: 860px;
+  margin-inline: auto;
 }
 
 .stat {
@@ -307,37 +248,14 @@
 }
 
 @media (max-width: 860px) {
-  .about-grid {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "slot"
-      "copy"
-      "stats";
-    gap: 28px;
-    text-align: center;
-  }
-
-  .about-grid > .product-slot {
-    height: clamp(220px, 60vw, 300px);
-  }
-
-  .about-grid > div:not(.product-slot):not(.stats) {
-    text-align: center;
-  }
-
-  .about-grid > div:not(.product-slot):not(.stats) .lead {
-    margin-inline: auto;
-    text-align: center;
-  }
-
-  .about-grid > .stats {
+  .stats {
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
   }
 }
 
 @media (max-width: 480px) {
-  .about-grid > .stats {
+  .stats {
     grid-template-columns: 1fr;
     gap: 12px;
   }
@@ -353,6 +271,93 @@
   .stat b {
     min-width: 3ch;
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mission: vision/mission cards + goals columns (#mission)                   */
+/* -------------------------------------------------------------------------- */
+.mission-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-grid);
+  margin-bottom: var(--space-stack);
+}
+
+.mission-card {
+  border-radius: var(--radius-lg);
+  padding: clamp(24px, 3.2vw, 40px);
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.mission-card h3 {
+  font-size: clamp(1.15rem, 2vw, 1.4rem);
+  margin: 0 0 10px;
+  color: var(--text);
+}
+
+.mission-card p {
+  margin: 0;
+  line-height: 1.7;
+  font-size: clamp(0.92rem, 1.3vw, 1rem);
+  color: var(--text-muted);
+}
+
+.mission-card .zone-icon {
+  margin-bottom: 16px;
+}
+
+.goals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-grid);
+}
+
+.goal {
+  border-radius: var(--radius-lg);
+  padding: clamp(24px, 3.2vw, 40px);
+  text-align: left;
+}
+
+.goal h3 {
+  font-size: clamp(1.1rem, 1.9vw, 1.3rem);
+  margin: 0 0 14px;
+  color: var(--text);
+}
+
+.goal ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goal li {
+  position: relative;
+  padding-left: 22px;
+  color: var(--text-muted);
+  font-size: clamp(0.9rem, 1.3vw, 0.98rem);
+  line-height: 1.6;
+}
+
+.goal li::before {
+  content: "✦";
+  position: absolute;
+  left: 0;
+  color: var(--orange);
+  font-size: 0.9em;
+}
+
+@media (max-width: 1099px) {
+  .mission-grid { grid-template-columns: repeat(2, 1fr); }
+  .goals { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .mission-grid { grid-template-columns: 1fr; }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -646,8 +651,8 @@
 
 .ticket .price {
   font-family: var(--font-display);
-  font-size: clamp(2.4rem, 4.5vw, 3.4rem);
-  line-height: 1;
+  font-size: clamp(1.05rem, 2.2vw, 1.6rem);
+  line-height: 1.2;
   margin: 0 0 26px;
   background: var(--grad-fire);
   -webkit-background-clip: text;
@@ -737,11 +742,6 @@
 .narrow {
   max-width: 760px;
   margin-inline: auto;
-}
-
-/* Widen .narrow containers when hosting a 2-col .has-product head */
-.narrow:has(.section-head.has-product) {
-  max-width: var(--maxw);
 }
 
 .narrow .timeline,
@@ -948,9 +948,10 @@
 }
 
 /* -------------------------------------------------------------------------- */
-/* Header Navigation adjustments (7 links, prevent crowding 861px–1200px)   */
+/* Header Navigation adjustments (8 links, prevent crowding 861px–1600px)   */
 /* -------------------------------------------------------------------------- */
-@media (min-width: 861px) and (max-width: 1200px) {
+@media (min-width: 861px) and (max-width: 1600px) {
+  .site-nav a { white-space: nowrap; }
   .site-header .container {
     gap: 12px;
   }

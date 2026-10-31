@@ -40,6 +40,11 @@ function resolveAsset(url) {
 const textureCache = new Map();
 export function loadTexture(url) {
   if (!url) return null;
+  if (typeof document === 'undefined') {
+    const dummy = new THREE.Texture();
+    configureTexture(dummy);
+    return dummy;
+  }
   if (textureCache.has(url)) return textureCache.get(url);
   const tex = getTextureLoader().load(resolveAsset(url), (loaded) => {
     configureTexture(loaded);
@@ -54,6 +59,7 @@ export function loadTexture(url) {
 let contactGlowTexture = null;
 export function getContactGlowTexture() {
   if (contactGlowTexture) return contactGlowTexture;
+  if (typeof document === 'undefined') return null;
   const canvas = document.createElement('canvas');
   canvas.width = 128;
   canvas.height = 128;
@@ -82,6 +88,7 @@ export function createContactGlowMesh(glowColor, width = 1.6, depth = 0.9) {
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide
   });
+  mat.userData = { baseOpacity: 0.28 };
   const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.x = -Math.PI / 2;
   mesh.userData.isContactGlow = true;
@@ -90,13 +97,8 @@ export function createContactGlowMesh(glowColor, width = 1.6, depth = 0.9) {
 
 /**
  * Loads unrolled wrap texture for cups/bowls:
- * - If prod.wrap is defined, loads the official 360° unrolled label texture (assets/products/<id>-wrap.webp).
- * - Fallback: generates opaque 360° tileable wrap on 1024x512 canvas:
- *   - Solid brand background (prod.colors.main) to eliminate any black cutout wedges.
- *   - Top rim edge band (prod.colors.accent) and bottom foot band.
- *   - Front half (u: 0.0..0.5, pixels 0..512, centered at x=256 / u=0.25).
- *   - Right half (u: 0.5..1.0, pixels 512..1024, mirrored back face).
- *   - Cross-faded tileable seams at x=512 and x=0/1024.
+ * - If prod.wrap is defined, loads the official 360° unrolled label texture.
+ * - Fallback: generates opaque 360° tileable wrap on 1024x512 canvas.
  */
 const wrapTextureCache = new Map();
 
@@ -113,6 +115,8 @@ export function loadCupOrBowlWrapTexture(prod, onUpdate) {
     return tex;
   }
 
+  if (typeof document === 'undefined') return null;
+
   const canvas = document.createElement('canvas');
   canvas.width = 1024;
   canvas.height = 512;
@@ -121,15 +125,12 @@ export function loadCupOrBowlWrapTexture(prod, onUpdate) {
   const mainColor = (prod.colors && prod.colors.main) || '#7F221E';
   const accentColor = (prod.colors && prod.colors.accent) || mainColor;
 
-  // 1. Solid opaque brand background - NO TRANSPARENCY, NO BLACK WEDGE!
   ctx.fillStyle = mainColor;
   ctx.fillRect(0, 0, 1024, 512);
 
-  // Top rim edge band (for rim lip)
   ctx.fillStyle = accentColor;
   ctx.fillRect(0, 0, 1024, 16);
 
-  // Bottom foot edge band
   ctx.fillStyle = mainColor;
   ctx.fillRect(0, 512 - 16, 1024, 16);
 
@@ -154,27 +155,22 @@ export function loadCupOrBowlWrapTexture(prod, onUpdate) {
       const drawW = Math.min(480, Math.round(drawH * aspect));
       const pasteX = Math.round(256 - drawW / 2);
 
-      // Re-fill solid brand background
       ctx.fillStyle = mainColor;
       ctx.fillRect(0, 0, 1024, 512);
 
-      // Top rim & bottom bands
       ctx.fillStyle = accentColor;
       ctx.fillRect(0, 0, 1024, 16);
       ctx.fillStyle = mainColor;
       ctx.fillRect(0, 512 - 16, 1024, 16);
 
-      // Draw front label cutout onto left half (centered at x=256, u=0.25)
       ctx.drawImage(img, 0, 0, iw, ih, pasteX, 0, drawW, drawH);
 
-      // Mirror left half (0..512) to right half (512..1024)
       ctx.save();
       ctx.translate(1024, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(canvas, 0, 0, 512, 512, 0, 0, 512, 512);
       ctx.restore();
 
-      // Smooth cross-fade blur at seams
       ctx.save();
       ctx.filter = 'blur(10px)';
       ctx.drawImage(canvas, 480, 0, 64, 512, 480, -10, 64, 532);
@@ -193,9 +189,14 @@ export function loadCupOrBowlWrapTexture(prod, onUpdate) {
 }
 
 /**
- * Cup or Bowl Lathe Geometry
+ * Cup or Bowl Lathe Geometry:
+ * - Recessed bottom foot rim.
+ * - Tapered conical body with natural organic curve.
+ * - Authentic rolled paper rim bead (viền mép cuộn).
+ * - Exact UV mapping for 360 wrap label without distortion.
  */
-export function createCupOrBowlGeometry(bodyData, type = 'cup', prod = null) {
+export function createCupOrBowlGeometry(bodyData, type = 'cup', prod = null, opts = {}) {
+  const isLowPoly = Boolean(opts && opts.lowPoly);
   const topW = (bodyData && bodyData.topW) ? bodyData.topW : 0.92;
   const bottomW = (bodyData && bodyData.bottomW) ? bodyData.bottomW : 0.7;
   const isBowl = type === 'bowl';
@@ -206,7 +207,6 @@ export function createCupOrBowlGeometry(bodyData, type = 'cup', prod = null) {
     : THREE.MathUtils.clamp(1.95 * (aspect / 1.33), 1.7, 2.3);
 
   const halfH = totalHeight * 0.5;
-  // Authentic radius derived from product's actual aspect ratio and body proportions
   const rTop = isBowl
     ? (halfH / aspect) * (topW * 0.4 + 0.6)
     : (halfH / aspect) * (topW * 0.5 + 0.45);
@@ -216,52 +216,57 @@ export function createCupOrBowlGeometry(bodyData, type = 'cup', prod = null) {
 
   const points = [];
   // 1. Recessed bottom center
-  points.push(new THREE.Vector2(0.0, -halfH + 0.05));
-  points.push(new THREE.Vector2(rBottom * 0.8, -halfH + 0.05));
+  points.push(new THREE.Vector2(0.0, -halfH + 0.045));
+  points.push(new THREE.Vector2(rBottom * 0.82, -halfH + 0.045));
   // 2. Bottom foot rim
-  points.push(new THREE.Vector2(rBottom * 0.95, -halfH));
+  points.push(new THREE.Vector2(rBottom * 0.94, -halfH));
   points.push(new THREE.Vector2(rBottom, -halfH));
+
   // 3. Tapered body with gentle natural curve
-  const steps = 14;
+  const steps = isLowPoly ? 8 : 16;
+  const bodyTopY = halfH - 0.04;
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
-    const y = -halfH + t * totalHeight;
-    const belly = Math.sin(t * Math.PI) * (isBowl ? 0.08 : 0.03);
+    const y = -halfH + t * (bodyTopY - (-halfH));
+    const belly = Math.sin(t * Math.PI) * (isBowl ? 0.065 : 0.022);
     const r = THREE.MathUtils.lerp(rBottom, rTop, t) + belly;
     points.push(new THREE.Vector2(r, y));
   }
-  // 4. Curled outer lip at rim
-  const rimR = rTop + 0.035;
-  points.push(new THREE.Vector2(rimR, halfH - 0.02));
-  points.push(new THREE.Vector2(rTop, halfH));
-  // 5. Inward bevel
-  points.push(new THREE.Vector2(rTop * 0.97, halfH - 0.02));
 
-  // Lathe around Y axis starting at -Math.PI * 0.5:
-  // u = 0.0 at left flank (-r, 0)
-  // u = 0.25 at center front (0, +r, facing camera at rest)
-  // u = 0.50 at right flank (+r, 0)
-  // u = 0.75 at center back (0, -r)
-  // u = 1.00 at left flank seam (-r, 0)
-  const geo = new THREE.LatheGeometry(points, 48, -Math.PI * 0.5, Math.PI * 2);
+  // 4. Rolled paper rim bead (viền mép cuộn)
+  // Torus cross-section curling out, up, and slightly inward
+  const beadR = isBowl ? 0.032 : 0.028;
+  const beadCenterX = rTop + beadR * 0.55;
+  const beadCenterY = halfH - beadR * 0.45;
+  const beadSteps = isLowPoly ? 4 : 7;
+  for (let b = 0; b <= beadSteps; b++) {
+    const angle = -Math.PI * 0.5 + (b / beadSteps) * Math.PI * 1.55;
+    const bx = beadCenterX + Math.cos(angle) * beadR;
+    const by = beadCenterY + Math.sin(angle) * beadR;
+    points.push(new THREE.Vector2(bx, by));
+  }
+
+  const radialSegments = isLowPoly ? 24 : 48;
+  const geo = new THREE.LatheGeometry(points, radialSegments, -Math.PI * 0.5, Math.PI * 2);
 
   const pos = geo.attributes.position;
   const uv = geo.attributes.uv;
 
-  // v from curled rim lip down; clean label fills full height with <=2% top/bottom rim lips
-  const rimBandHeight = 0.02 * totalHeight;
-  const yRim = halfH - rimBandHeight;
-  const yBottom = -halfH + 0.02 * totalHeight;
+  // UV mapping: Body wall from yBottom to yRim gets v: 0.02..0.98.
+  // Rolled rim gets v = 0.99 (matching top edge print).
+  // Bottom foot gets v = 0.01 (matching bottom edge print).
+  const yRim = bodyTopY;
+  const yBottom = -halfH + 0.02;
 
   for (let k = 0; k < pos.count; k++) {
     const y = pos.getY(k);
     let v;
     if (y >= yRim) {
-      v = 0.99; // Top edge colour (rim lip)
+      v = 0.99; // Rolled rim lip inherits top edge accent
     } else if (y <= yBottom) {
-      v = 0.01; // Bottom edge colour
+      v = 0.01; // Bottom foot
     } else {
-      v = THREE.MathUtils.clamp((y - yBottom) / (yRim - yBottom), 0.01, 0.99);
+      v = THREE.MathUtils.clamp((y - yBottom) / (yRim - yBottom), 0.02, 0.98);
     }
     uv.setY(k, v);
   }
@@ -272,16 +277,17 @@ export function createCupOrBowlGeometry(bodyData, type = 'cup', prod = null) {
 }
 
 /**
- * Top paper / foil lid geometry with subtle convex bulge
+ * Top paper / foil lid geometry with subtle convex bulge (used when closed)
  */
-export function createLidGeometry(radius = 1.0) {
-  const geo = new THREE.CircleGeometry(radius * 1.02, 40);
+export function createLidGeometry(radius = 1.0, opts = {}) {
+  const segments = (opts && opts.lowPoly) ? 24 : 40;
+  const geo = new THREE.CircleGeometry(radius * 1.02, segments);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
     const dist = Math.hypot(x, y) / radius;
-    const bulge = Math.max(0, 1 - dist * dist) * 0.04;
+    const bulge = Math.max(0, 1 - dist * dist) * 0.035;
     pos.setZ(i, bulge);
   }
   geo.computeVertexNormals();
@@ -289,15 +295,571 @@ export function createLidGeometry(radius = 1.0) {
 }
 
 /**
- * Pillow Pack geometry for rectangular instant noodle packages
- * Includes crimped ends, zigzag border, and 15% darker flipped back face.
+ * Creates peeled-back foil lid geometry pair:
+ * 1. topGeo: Printed outer lid graphic (*-lid.webp).
+ * 2. foilGeo: Shiny metallic aluminum underside revealed when curled up.
+ * Fold hinge is near z = -0.05 * radius; front portion lifts up ~60° with a natural foil curl.
  */
-export function createPackGeometry(aspect = 1.32) {
+export function createPeeledLidGeometries(radius = 1.0, opts = {}) {
+  const isLowPoly = Boolean(opts && opts.lowPoly);
+  const rings = isLowPoly ? 8 : 14;
+  const segments = isLowPoly ? 24 : 36;
+  const peelAngle = (opts && opts.peelAngle) || 1.08; // ~62° bend
+
+  const topVertices = [];
+  const topNormals = [];
+  const uvs = [];
+  const indices = [];
+
+  // Center vertex
+  topVertices.push(0, 0, 0);
+  uvs.push(0.5, 0.5);
+
+  const hingeY = -radius * 0.06;
+
+  for (let ring = 1; ring <= rings; ring++) {
+    const r = (ring / rings) * (radius * 1.015);
+    for (let seg = 0; seg < segments; seg++) {
+      const theta = (seg / segments) * Math.PI * 2;
+      const x0 = Math.cos(theta) * r;
+      const y0 = Math.sin(theta) * r;
+
+      const u = (x0 / radius + 1) * 0.5;
+      const v = (y0 / radius + 1) * 0.5;
+
+      let px = x0;
+      let py = y0;
+      let pz = 0;
+
+      if (py > hingeY) {
+        const t = (py - hingeY) / (radius * 1.015 - hingeY);
+        const foldAng = t * peelAngle;
+        const arcLen = py - hingeY;
+        // As it curls back around hinge line:
+        py = hingeY + arcLen * Math.cos(foldAng);
+        // Vertical height lift + natural wavy curl at the free edge
+        const edgeCurl = Math.sin(t * Math.PI) * 0.035 + (t > 0.85 ? Math.sin((t - 0.85) * Math.PI * 6.0) * 0.015 : 0);
+        pz = arcLen * Math.sin(foldAng) + edgeCurl;
+      } else {
+        // Back sealed portion has slight tension bulge
+        const dist = Math.hypot(x0, y0) / radius;
+        pz = Math.max(0, 1 - dist * dist) * 0.015;
+      }
+
+      topVertices.push(px, py, pz);
+      uvs.push(u, v);
+    }
+  }
+
+  // Connect inner ring to center
+  for (let seg = 0; seg < segments; seg++) {
+    const next = (seg + 1) % segments;
+    indices.push(0, seg + 1, next + 1);
+  }
+
+  // Connect concentric rings
+  for (let ring = 1; ring < rings; ring++) {
+    const rStart = 1 + (ring - 1) * segments;
+    const nextStart = 1 + ring * segments;
+    for (let seg = 0; seg < segments; seg++) {
+      const next = (seg + 1) % segments;
+      const i0 = rStart + seg;
+      const i1 = rStart + next;
+      const j0 = nextStart + seg;
+      const j1 = nextStart + next;
+      indices.push(i0, j0, i1);
+      indices.push(i1, j0, j1);
+    }
+  }
+
+  const topGeo = new THREE.BufferGeometry();
+  topGeo.setAttribute('position', new THREE.Float32BufferAttribute(topVertices, 3));
+  topGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  topGeo.setIndex(indices);
+  topGeo.computeVertexNormals();
+
+  // Foil underside: same shape with flipped winding and -0.002 hairline offset to prevent z-fighting
+  const foilIndices = [];
+  for (let i = 0; i < indices.length; i += 3) {
+    foilIndices.push(indices[i], indices[i + 2], indices[i + 1]);
+  }
+
+  const foilVertices = new Float32Array(topVertices.length);
+  const topNorm = topGeo.attributes.normal.array;
+  for (let i = 0; i < topVertices.length; i += 3) {
+    foilVertices[i + 0] = topVertices[i + 0] - topNorm[i + 0] * 0.002;
+    foilVertices[i + 1] = topVertices[i + 1] - topNorm[i + 1] * 0.002;
+    foilVertices[i + 2] = topVertices[i + 2] - topNorm[i + 2] * 0.002;
+  }
+
+  const foilGeo = new THREE.BufferGeometry();
+  foilGeo.setAttribute('position', new THREE.BufferAttribute(foilVertices, 3));
+  foilGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  foilGeo.setIndex(foilIndices);
+  foilGeo.computeVertexNormals();
+
+  return { topGeo, foilGeo };
+}
+
+/**
+ * Merges multiple BufferGeometries into a single BufferGeometry for draw-call batching.
+ */
+function mergeBufferGeometriesSimple(geos) {
+  let totalPos = 0;
+  let totalIdx = 0;
+  for (let k = 0; k < geos.length; k++) {
+    const g = geos[k];
+    if (!g || !g.attributes.position) continue;
+    totalPos += g.attributes.position.count;
+    if (g.index) totalIdx += g.index.count;
+  }
+  if (totalPos === 0) return new THREE.BufferGeometry();
+
+  const positions = new Float32Array(totalPos * 3);
+  const normals = new Float32Array(totalPos * 3);
+  const indices = new Uint32Array(totalIdx);
+
+  let posOffset = 0;
+  let idxOffset = 0;
+  let vertexOffset = 0;
+
+  for (let k = 0; k < geos.length; k++) {
+    const g = geos[k];
+    if (!g || !g.attributes.position) continue;
+    const pArr = g.attributes.position.array;
+    positions.set(pArr, posOffset * 3);
+
+    if (g.attributes.normal) {
+      normals.set(g.attributes.normal.array, posOffset * 3);
+    }
+
+    if (g.index) {
+      const iArr = g.index.array;
+      for (let j = 0; j < iArr.length; j++) {
+        indices[idxOffset + j] = iArr[j] + vertexOffset;
+      }
+      idxOffset += g.index.count;
+    }
+
+    const count = g.attributes.position.count;
+    posOffset += count;
+    vertexOffset += count;
+  }
+
+  const merged = new THREE.BufferGeometry();
+  merged.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  merged.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  if (totalIdx > 0) {
+    merged.setIndex(new THREE.BufferAttribute(indices, 1));
+  }
+  return merged;
+}
+
+/**
+ * Creates curled shrimp geometry (tôm khô ăn liền)
+ */
+function createShrimpGeometry(scale = 1.0) {
+  const pts = [];
+  const segments = 10;
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const angle = -Math.PI * 0.22 + t * Math.PI * 1.15;
+    const r = 0.082 * scale;
+    const x = Math.cos(angle) * r;
+    const y = Math.sin(angle) * r * 0.82;
+    const z = Math.sin(t * Math.PI) * (0.016 * scale);
+    pts.push(new THREE.Vector3(x, y, z));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const geo = new THREE.TubeGeometry(curve, 10, 0.024 * scale, 6, false);
+
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const u = Math.floor(i / 7) / 10;
+    let taper = 1.0;
+    if (u < 0.25) taper = 0.5 + u * 2.0;
+    else if (u > 0.55) taper = 1.0 - (u - 0.55) * 1.8;
+    taper = Math.max(0.28, taper);
+    pos.setXYZ(i, pos.getX(i) * taper, pos.getY(i) * taper, pos.getZ(i) * taper);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * Creates 3D curly noodle strand (sợi mì xoăn 3D)
+ */
+function createCurlyNoodleStrand(cx, cz, baseR, arcAngle, turns, depth, scale = 1.0) {
+  const pts = [];
+  const steps = 16;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    const angle = t * arcAngle;
+    const r = baseR * (0.75 + 0.35 * Math.sin(t * Math.PI));
+    const wave = Math.sin(t * Math.PI * turns * 2.0) * (0.028 * scale);
+    const x = cx + Math.cos(angle) * (r + wave);
+    const z = cz + Math.sin(angle) * (r + wave);
+    const y = -depth + 0.032 * scale + Math.sin(t * Math.PI * turns * 1.6) * (0.016 * scale) + Math.sin(t * Math.PI) * (0.02 * scale);
+    pts.push(new THREE.Vector3(x, y, z));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  return new THREE.TubeGeometry(curve, 12, 0.018 * scale, 5, false);
+}
+
+/**
+ * Creates complete realistic noodle assembly inside the cup:
+ * - Inner cup food-grade paper lining
+ * - Rich savory broth disc
+ * - Sculpted curly noodle mound
+ * - 3D curly noodle strands
+ * - Toppings: shrimp (tôm), scallions (hành lá), fluffy egg cubes (trứng)
+ */
+export function createNoodleAssembly(rTop, halfH, opts = {}) {
+  const isLowPoly = Boolean(opts && opts.lowPoly);
+  const group = new THREE.Group();
+  group.userData.isNoodleAssembly = true;
+  const materials = [];
+
+  const noodleDepth = 0.22;
+  const rLiningTop = rTop - 0.025;
+  const rLiningBottom = rTop * 0.90;
+  const liningH = noodleDepth + 0.02;
+
+  // 1. Inner paper lining
+  const liningGeo = new THREE.CylinderGeometry(
+    rLiningTop,
+    rLiningBottom,
+    liningH,
+    isLowPoly ? 24 : 40,
+    1,
+    true
+  );
+  const liningMat = new THREE.MeshPhysicalMaterial({
+    color: 0xFAF7F2,
+    roughness: 0.58,
+    metalness: 0.0,
+    clearcoat: 0.08,
+    side: THREE.DoubleSide
+  });
+  materials.push(liningMat);
+  const liningMesh = new THREE.Mesh(liningGeo, liningMat);
+  liningMesh.position.y = halfH - liningH * 0.5 - 0.005;
+  group.add(liningMesh);
+
+  // 2. Rich broth disc
+  const brothGeo = new THREE.CircleGeometry(rLiningBottom * 0.98, isLowPoly ? 20 : 36);
+  const brothMat = new THREE.MeshPhysicalMaterial({
+    color: 0x9E3B1B,
+    roughness: 0.1,
+    metalness: 0.05,
+    clearcoat: 0.85,
+    clearcoatRoughness: 0.12,
+    side: THREE.FrontSide
+  });
+  materials.push(brothMat);
+  const brothMesh = new THREE.Mesh(brothGeo, brothMat);
+  brothMesh.rotation.x = -Math.PI / 2;
+  brothMesh.position.y = halfH - noodleDepth - 0.015;
+  group.add(brothMesh);
+
+  // 3. Curly noodle mound (sculpted bed)
+  const bedRings = isLowPoly ? 6 : 10;
+  const bedSegments = isLowPoly ? 20 : 32;
+  const bedGeo = new THREE.RingGeometry(0.01, rLiningBottom * 0.96, bedSegments, bedRings);
+  const bedPos = bedGeo.attributes.position;
+  for (let i = 0; i < bedPos.count; i++) {
+    const x = bedPos.getX(i);
+    const y = bedPos.getY(i);
+    const dist = Math.hypot(x, y) / (rLiningBottom * 0.96);
+    const dome = Math.max(0, 1 - dist * dist) * 0.045;
+    const wave = Math.sin(x * 32.0 + Math.cos(y * 24.0) * 2.0) * 0.02 +
+                 Math.cos(y * 30.0 + Math.sin(x * 24.0) * 2.0) * 0.02;
+    bedPos.setZ(i, dome + wave);
+  }
+  bedGeo.computeVertexNormals();
+
+  const noodleMat = new THREE.MeshPhysicalMaterial({
+    color: 0xF5C75D,
+    roughness: 0.36,
+    metalness: 0.0,
+    clearcoat: 0.28,
+    clearcoatRoughness: 0.25,
+    side: THREE.FrontSide
+  });
+  materials.push(noodleMat);
+  const bedMesh = new THREE.Mesh(bedGeo, noodleMat);
+  bedMesh.rotation.x = -Math.PI / 2;
+  bedMesh.position.y = halfH - noodleDepth + 0.025;
+  group.add(bedMesh);
+
+  // 4. 3D Curly noodle strands (winding tubes)
+  const strandCount = isLowPoly ? 6 : 13;
+  const strandGeos = [];
+  const sScale = rTop / 0.68;
+
+  for (let s = 0; s < strandCount; s++) {
+    const angle = (s / strandCount) * Math.PI * 2 + (s % 2) * 0.3;
+    const dist = (0.2 + (s % 3) * 0.22) * (rLiningBottom * 0.85);
+    const cx = Math.cos(angle) * dist;
+    const cz = Math.sin(angle) * dist;
+    const baseR = (0.12 + (s % 4) * 0.04) * sScale;
+    const arc = (Math.PI * 1.2) + (s % 3) * 0.6;
+    const turns = 2.5 + (s % 3) * 0.8;
+
+    const strand = createCurlyNoodleStrand(cx, cz, baseR, arc, turns, noodleDepth - 0.02, sScale);
+    strandGeos.push(strand);
+  }
+
+  const mergedStrandsGeo = mergeBufferGeometriesSimple(strandGeos);
+  const strandsMesh = new THREE.Mesh(mergedStrandsGeo, noodleMat);
+  strandsMesh.position.y = halfH;
+  group.add(strandsMesh);
+
+  // 5. Topping: Tôm (Shrimp)
+  const shrimpCount = isLowPoly ? 2 : 3;
+  const shrimpGeos = [];
+  const shrimpMat = new THREE.MeshPhysicalMaterial({
+    color: 0xFF5834,
+    roughness: 0.32,
+    metalness: 0.0,
+    clearcoat: 0.3,
+    clearcoatRoughness: 0.25
+  });
+  materials.push(shrimpMat);
+
+  const shrimpPlacements = [
+    { x: 0.14 * rTop, y: halfH - noodleDepth + 0.075, z: 0.22 * rTop, rx: 0.3, ry: 0.8, rz: -0.2, s: 1.05 * sScale },
+    { x: -0.22 * rTop, y: halfH - noodleDepth + 0.07, z: 0.28 * rTop, rx: -0.2, ry: -1.2, rz: 0.3, s: 0.95 * sScale },
+    { x: -0.04 * rTop, y: halfH - noodleDepth + 0.08, z: 0.44 * rTop, rx: 0.4, ry: 2.1, rz: 0.1, s: 1.0 * sScale }
+  ];
+
+  for (let i = 0; i < shrimpCount; i++) {
+    const p = shrimpPlacements[i];
+    const sGeo = createShrimpGeometry(p.s);
+    const mat4 = new THREE.Matrix4();
+    const pos = new THREE.Vector3(p.x, p.y, p.z);
+    const rot = new THREE.Euler(p.rx, p.ry, p.rz);
+    const sca = new THREE.Vector3(1, 1, 1);
+    mat4.compose(pos, new THREE.Quaternion().setFromEuler(rot), sca);
+    sGeo.applyMatrix4(mat4);
+    shrimpGeos.push(sGeo);
+  }
+
+  const mergedShrimpGeo = mergeBufferGeometriesSimple(shrimpGeos);
+  const shrimpMesh = new THREE.Mesh(mergedShrimpGeo, shrimpMat);
+  group.add(shrimpMesh);
+
+  // 6. Topping: Hành lá (Chopped scallion rings)
+  const scallionCount = isLowPoly ? 8 : 16;
+  const scallionGeos = [];
+  const scallionMat = new THREE.MeshPhysicalMaterial({
+    color: 0x2E7D32,
+    roughness: 0.42,
+    metalness: 0.0,
+    clearcoat: 0.2
+  });
+  materials.push(scallionMat);
+
+  for (let i = 0; i < scallionCount; i++) {
+    const scR = (0.024 + (i % 4) * 0.004) * sScale;
+    const scH = (0.012 + (i % 3) * 0.003) * sScale;
+    const scGeo = new THREE.CylinderGeometry(scR, scR, scH, 8, 1, false);
+
+    const angle = (i / scallionCount) * Math.PI * 2 + (i * 1.3);
+    const dist = (0.15 + ((i * 7) % 10) * 0.065) * (rLiningBottom * 0.88);
+    const sx = Math.cos(angle) * dist;
+    const sz = Math.sin(angle) * dist;
+    const sy = halfH - noodleDepth + 0.05 + Math.sin(i * 2.1) * 0.025;
+
+    const mat4 = new THREE.Matrix4();
+    const rot = new THREE.Euler(
+      (Math.sin(i * 1.7) * 0.3),
+      angle,
+      (Math.cos(i * 1.9) * 0.3)
+    );
+    mat4.compose(
+      new THREE.Vector3(sx, sy, sz),
+      new THREE.Quaternion().setFromEuler(rot),
+      new THREE.Vector3(1, 1, 1)
+    );
+    scGeo.applyMatrix4(mat4);
+    scallionGeos.push(scGeo);
+  }
+
+  const mergedScallionGeo = mergeBufferGeometriesSimple(scallionGeos);
+  const scallionMesh = new THREE.Mesh(mergedScallionGeo, scallionMat);
+  group.add(scallionMesh);
+
+  // 7. Topping: Trứng (Fluffy egg cubes)
+  const eggCount = isLowPoly ? 3 : 5;
+  const eggGeos = [];
+  const eggMat = new THREE.MeshPhysicalMaterial({
+    color: 0xFFD54F,
+    roughness: 0.65,
+    metalness: 0.0,
+    clearcoat: 0.0
+  });
+  materials.push(eggMat);
+
+  const eggPlacements = [
+    { x: 0.34 * rTop, y: halfH - noodleDepth + 0.065, z: 0.16 * rTop, ry: 0.4 },
+    { x: -0.32 * rTop, y: halfH - noodleDepth + 0.06, z: 0.12 * rTop, ry: -0.5 },
+    { x: 0.16 * rTop, y: halfH - noodleDepth + 0.07, z: 0.46 * rTop, ry: 1.1 },
+    { x: -0.16 * rTop, y: halfH - noodleDepth + 0.065, z: 0.48 * rTop, ry: -1.3 },
+    { x: 0.02 * rTop, y: halfH - noodleDepth + 0.075, z: 0.08 * rTop, ry: 0.8 }
+  ];
+
+  for (let i = 0; i < eggCount; i++) {
+    const p = eggPlacements[i];
+    const ew = (0.062 + (i % 2) * 0.008) * sScale;
+    const eh = (0.052 + (i % 2) * 0.006) * sScale;
+    const ed = (0.062 + (i % 2) * 0.008) * sScale;
+    const eGeo = new THREE.BoxGeometry(ew, eh, ed, 1, 1, 1);
+
+    const mat4 = new THREE.Matrix4();
+    const rot = new THREE.Euler(0.15 * Math.sin(i), p.ry, 0.15 * Math.cos(i));
+    mat4.compose(
+      new THREE.Vector3(p.x, p.y, p.z),
+      new THREE.Quaternion().setFromEuler(rot),
+      new THREE.Vector3(1, 1, 1)
+    );
+    eGeo.applyMatrix4(mat4);
+    eggGeos.push(eGeo);
+  }
+
+  const mergedEggGeo = mergeBufferGeometriesSimple(eggGeos);
+  const eggMesh = new THREE.Mesh(mergedEggGeo, eggMat);
+  group.add(eggMesh);
+
+  return { group, materials };
+}
+
+/**
+ * Reusable soft steam wisp canvas texture
+ */
+let steamTexture = null;
+function getSteamTexture() {
+  if (steamTexture) return steamTexture;
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  const grad = ctx.createLinearGradient(64, 256, 64, 0);
+  grad.addColorStop(0.0, 'rgba(255, 252, 246, 0.0)');
+  grad.addColorStop(0.2, 'rgba(255, 252, 246, 0.45)');
+  grad.addColorStop(0.6, 'rgba(255, 252, 246, 0.32)');
+  grad.addColorStop(0.9, 'rgba(255, 252, 246, 0.10)');
+  grad.addColorStop(1.0, 'rgba(255, 252, 246, 0.0)');
+
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(64, 256);
+  ctx.bezierCurveTo(45, 200, 38, 140, 52, 80);
+  ctx.bezierCurveTo(65, 40, 80, 20, 64, 0);
+  ctx.bezierCurveTo(85, 30, 95, 70, 82, 120);
+  ctx.bezierCurveTo(70, 170, 85, 220, 64, 256);
+  ctx.closePath();
+  ctx.fill();
+
+  steamTexture = new THREE.CanvasTexture(canvas);
+  configureTexture(steamTexture);
+  return steamTexture;
+}
+
+/**
+ * Creates rising steam plumes above the hot noodle cup:
+ * Auto-animated in Three.js render loop via onBeforeRender.
+ */
+export function createSteamGroup(rTop, halfH, opts = {}) {
+  const group = new THREE.Group();
+  group.userData.isSteam = true;
+  const materials = [];
+
+  const count = (opts && opts.lowPoly) ? 3 : 5;
+  const wisps = [];
+  const map = getSteamTexture();
+
+  for (let i = 0; i < count; i++) {
+    const geo = new THREE.PlaneGeometry(0.35, 0.85);
+    const mat = new THREE.MeshBasicMaterial({
+      map,
+      color: 0xFFFDF8,
+      transparent: true,
+      opacity: 0.24,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+    mat.userData = { baseOpacity: 0.24 };
+    materials.push(mat);
+
+    const mesh = new THREE.Mesh(geo, mat);
+    const angle = (i / count) * Math.PI * 2;
+    const radius = (0.08 + (i % 3) * 0.04) * rTop;
+    const baseX = Math.cos(angle) * radius;
+    const baseZ = Math.sin(angle) * radius + 0.15 * rTop; // bias towards opening
+
+    mesh.userData = {
+      baseX,
+      baseZ,
+      speed: 0.22 + (i % 3) * 0.08,
+      offset: i / count,
+      baseScale: 0.85 + (i % 2) * 0.3
+    };
+    wisps.push(mesh);
+    group.add(mesh);
+  }
+
+  // Autonomous animation in standard Three.js render pass + explicit tickSteam hook
+  group.userData.tickSteam = (timeSec) => {
+    const time = (typeof timeSec === 'number')
+      ? timeSec
+      : ((typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001);
+    const baseY = halfH + 0.02;
+    for (let i = 0; i < wisps.length; i++) {
+      const w = wisps[i];
+      const u = w.userData;
+      const cycle = ((time * u.speed + u.offset) % 1.0);
+      w.position.y = baseY + cycle * 1.15;
+      w.position.x = u.baseX + Math.sin(time * 1.6 + u.offset * 6.28) * 0.045;
+      w.position.z = u.baseZ + Math.cos(time * 1.3 + u.offset * 6.28) * 0.045;
+
+      const sc = u.baseScale * (0.8 + cycle * 1.35);
+      w.scale.set(sc, sc * 1.45, sc);
+
+      // Smooth rise envelope
+      const alpha = Math.sin(cycle * Math.PI) * (1.0 - cycle * 0.35) * (w.material.userData.baseOpacity || 0.24);
+      w.material.opacity = alpha;
+    }
+  };
+
+  group.onBeforeRender = () => {
+    group.userData.tickSteam();
+  };
+
+  return { group, materials };
+}
+
+/**
+ * Pillow Pack geometry for rectangular instant noodle packages:
+ * - Inflated center with realistic pillow curve.
+ * - Crimped ends with zigzag border.
+ * - Longitudinal rear fin seam.
+ * - 15% darker flipped back face.
+ */
+export function createPackGeometry(aspect = 1.32, opts = {}) {
+  const isLowPoly = Boolean(opts && opts.lowPoly);
   const w = 1.6;
   const h = w * (aspect || 1.32);
   const d = 0.46;
 
-  const geo = new THREE.BoxGeometry(w, h, d, 26, 30, 8);
+  const segX = isLowPoly ? 16 : 26;
+  const segY = isLowPoly ? 18 : 30;
+  const segZ = isLowPoly ? 4 : 8;
+
+  const geo = new THREE.BoxGeometry(w, h, d, segX, segY, segZ);
   const pos = geo.attributes.position;
   const uv = geo.attributes.uv;
   const halfW = w * 0.5;
@@ -384,6 +946,7 @@ export function createHoloRimOutline(mesh, rimColor, thickness = 0.012) {
     depthWrite: false,
     blending: THREE.AdditiveBlending
   });
+  mat.userData = { baseOpacity: 0.25 };
   const outlineMesh = new THREE.Mesh(geo, mat);
   outlineMesh.userData.isRim = true;
   mesh.add(outlineMesh);
@@ -392,35 +955,79 @@ export function createHoloRimOutline(mesh, rimColor, thickness = 0.012) {
 
 /**
  * Builds a realistic 3D noodle product model from real data with optional thin palette hologram rim.
- * Opaque bodies (transparent: false, depthWrite: true, FrontSide) to eliminate ghosting.
+ * Supported options:
+ * - withHoloRim: boolean (default true)
+ * - withContactGlow: boolean (default true)
+ * - rimColor: THREE.Color
+ * - peeledLid: boolean (default true for cups/bowls when lid exists, reveals noodles & toppings)
+ * - steam: boolean (default false; when true, renders soft rising steam wisps)
+ * - lowPoly: boolean (default false; optimizes polygon count for mobile)
  */
 export function createRealProductModel(prod, opts = {}) {
   const root = new THREE.Group();
   root.userData.product = prod;
 
   const type = prod.type || 'pack';
+  const isCupOrBowl = type === 'cup' || type === 'bowl';
   const withRim = opts.withHoloRim !== false;
   const rimColor = opts.rimColor || new THREE.Color(0xffb300);
+  const isLowPoly = Boolean(opts && opts.lowPoly);
+  const isOpenExplicitlyFalse = opts.open === false || opts.openLid === false || opts.peeledLid === false || opts.peelLid === false;
+  const isOpenExplicitlyTrue = opts.open === true || opts.openLid === true || opts.peeledLid === true || opts.peelLid === true;
+  const withPeeledLid = isCupOrBowl && Boolean(prod.lid) && (!isOpenExplicitlyFalse && (isOpenExplicitlyTrue || opts.peeledLid !== false));
+  const withSteam = isCupOrBowl && Boolean(opts.steam);
 
-  // Opaque standard material with crisp saturation and controlled reflections
-  const mainMat = new THREE.MeshStandardMaterial({
-    roughness: 0.35,
-    metalness: 0.0,
-    color: 0xffffff,
-    transparent: false,
-    depthWrite: true,
-    side: THREE.FrontSide,
-    envMapIntensity: 0.55,
-    vertexColors: type === 'pack'
-  });
+  // Realistic PBR materials with clearcoat and authentic roughness
+  let mainMat;
+  if (type === 'pack') {
+    // Glossy metallized polypropylene film packaging (OPP/MCPP)
+    mainMat = new THREE.MeshPhysicalMaterial({
+      roughness: 0.26,
+      metalness: 0.12,
+      color: 0xffffff,
+      clearcoat: 0.45,
+      clearcoatRoughness: 0.22,
+      transparent: false,
+      depthWrite: true,
+      side: THREE.FrontSide,
+      envMapIntensity: 0.75,
+      vertexColors: true
+    });
+  } else if (type === 'bowl') {
+    // Heat-resistant polypropylene (PP) plastic bowl with smooth sheen
+    mainMat = new THREE.MeshPhysicalMaterial({
+      roughness: 0.32,
+      metalness: 0.0,
+      color: 0xffffff,
+      clearcoat: 0.28,
+      clearcoatRoughness: 0.28,
+      transparent: false,
+      depthWrite: true,
+      side: THREE.FrontSide,
+      envMapIntensity: 0.6
+    });
+  } else {
+    // Paper cup body with subtle wax/lacquer protective coating
+    mainMat = new THREE.MeshPhysicalMaterial({
+      roughness: 0.38,
+      metalness: 0.0,
+      color: 0xffffff,
+      clearcoat: 0.18,
+      clearcoatRoughness: 0.35,
+      transparent: false,
+      depthWrite: true,
+      side: THREE.FrontSide,
+      envMapIntensity: 0.55
+    });
+  }
 
   const rimMaterials = [];
   const allMeshMats = [mainMat];
 
-  if (type === 'cup' || type === 'bowl') {
-    const { geo, rTop, rBottom, halfH, totalHeight } = createCupOrBowlGeometry(prod.body, type, prod);
+  if (isCupOrBowl) {
+    const { geo, rTop, rBottom, halfH, totalHeight } = createCupOrBowlGeometry(prod.body, type, prod, { lowPoly: isLowPoly });
     root.userData.rawHeight = totalHeight;
-    root.userData.rawWidth = (Math.max(rTop, rBottom) + 0.035) * 2;
+    root.userData.rawWidth = (Math.max(rTop, rBottom) + 0.04) * 2;
     root.userData.type = type;
 
     const bodyMesh = new THREE.Mesh(geo, mainMat);
@@ -432,8 +1039,8 @@ export function createRealProductModel(prod, opts = {}) {
     }
 
     // Solid paper bottom cap so cups seen from below show authentic base
-    const bottomGeo = new THREE.CircleGeometry(rBottom * 0.98, 36);
-    const bottomMat = new THREE.MeshStandardMaterial({
+    const bottomGeo = new THREE.CircleGeometry(rBottom * 0.98, isLowPoly ? 20 : 36);
+    const bottomMat = new THREE.MeshPhysicalMaterial({
       roughness: 0.55,
       metalness: 0.0,
       color: (prod && prod.colors && prod.colors.main) ? prod.colors.main : 0xf5eedc,
@@ -448,24 +1055,77 @@ export function createRealProductModel(prod, opts = {}) {
     root.add(bottomMesh);
     allMeshMats.push(bottomMat);
 
+    // Lid and internal noodle assembly
     if (prod.lid) {
-      const lidGeo = createLidGeometry(rTop);
-      const lidMat = new THREE.MeshStandardMaterial({
-        roughness: 0.4,
-        metalness: 0.0,
-        color: 0xffffff,
-        transparent: false,
-        depthWrite: true,
-        side: THREE.FrontSide,
-        envMapIntensity: 0.55
-      });
-      allMeshMats.push(lidMat);
       const lidTex = loadTexture(prod.lid);
-      if (lidTex) lidMat.map = lidTex;
-      const lidMesh = new THREE.Mesh(lidGeo, lidMat);
-      lidMesh.rotation.x = -Math.PI / 2;
-      lidMesh.position.y = halfH + 0.005;
-      root.add(lidMesh);
+
+      if (withPeeledLid) {
+        // 1. Peeled-back foil lid (two-sided: printed top graphic + shiny aluminum underside)
+        const { topGeo, foilGeo } = createPeeledLidGeometries(rTop, { lowPoly: isLowPoly });
+
+        const lidMat = new THREE.MeshPhysicalMaterial({
+          roughness: 0.36,
+          metalness: 0.14,
+          color: 0xffffff,
+          clearcoat: 0.22,
+          clearcoatRoughness: 0.3,
+          transparent: false,
+          depthWrite: true,
+          side: THREE.FrontSide,
+          envMapIntensity: 0.6
+        });
+        if (lidTex) lidMat.map = lidTex;
+        allMeshMats.push(lidMat);
+
+        const peeledLidMesh = new THREE.Mesh(topGeo, lidMat);
+        peeledLidMesh.rotation.x = -Math.PI / 2;
+        peeledLidMesh.position.y = halfH + 0.008;
+        root.add(peeledLidMesh);
+
+        // Aluminum foil underside
+        const foilMat = new THREE.MeshPhysicalMaterial({
+          roughness: 0.25,
+          metalness: 0.88,
+          color: 0xDCDCDC,
+          clearcoat: 0.32,
+          clearcoatRoughness: 0.25,
+          transparent: false,
+          depthWrite: true,
+          side: THREE.FrontSide,
+          envMapIntensity: 0.85
+        });
+        allMeshMats.push(foilMat);
+
+        const foilMesh = new THREE.Mesh(foilGeo, foilMat);
+        foilMesh.rotation.x = -Math.PI / 2;
+        foilMesh.position.y = halfH + 0.008;
+        root.add(foilMesh);
+
+        // 2. Realistic Noodle Assembly inside the cup (lining, broth, curly noodles, shrimp, scallion, egg)
+        const { group: noodleGroup, materials: noodleMats } = createNoodleAssembly(rTop, halfH, { lowPoly: isLowPoly });
+        root.add(noodleGroup);
+        root.userData.noodleAssembly = noodleGroup;
+        noodleMats.forEach((m) => allMeshMats.push(m));
+      } else {
+        // Flat/convex closed lid
+        const lidGeo = createLidGeometry(rTop, { lowPoly: isLowPoly });
+        const lidMat = new THREE.MeshPhysicalMaterial({
+          roughness: 0.38,
+          metalness: 0.12,
+          color: 0xffffff,
+          clearcoat: 0.22,
+          transparent: false,
+          depthWrite: true,
+          side: THREE.FrontSide,
+          envMapIntensity: 0.55
+        });
+        allMeshMats.push(lidMat);
+        if (lidTex) lidMat.map = lidTex;
+        const lidMesh = new THREE.Mesh(lidGeo, lidMat);
+        lidMesh.rotation.x = -Math.PI / 2;
+        lidMesh.position.y = halfH + 0.005;
+        root.add(lidMesh);
+      }
     }
 
     // Body Texture: full 360 wrap texture (or fallback wrap)
@@ -473,6 +1133,25 @@ export function createRealProductModel(prod, opts = {}) {
       mainMat.needsUpdate = true;
     });
     mainMat.map = wrapTex;
+
+    // 3. Optional Steam wisps (opts.steam)
+    let createdSteamGroup = null;
+    if (withSteam) {
+      const { group: steamGroup, materials: steamMats } = createSteamGroup(rTop, halfH, { lowPoly: isLowPoly });
+      root.add(steamGroup);
+      root.userData.steamGroup = steamGroup;
+      createdSteamGroup = steamGroup;
+      steamMats.forEach((m) => allMeshMats.push(m));
+    }
+
+    root.userData.updateSteam = (timeSec) => {
+      if (createdSteamGroup && typeof createdSteamGroup.userData.tickSteam === 'function') {
+        createdSteamGroup.userData.tickSteam(timeSec);
+      }
+    };
+    root.userData.tick = (timeSec) => {
+      root.userData.updateSteam(timeSec);
+    };
   } else {
     // Pack
     const aspect = (prod.h && prod.w) ? (prod.h / prod.w) : ((prod.body && prod.body.aspect) || 1.32);
@@ -480,7 +1159,7 @@ export function createRealProductModel(prod, opts = {}) {
     root.userData.rawWidth = 1.6;
     root.userData.type = 'pack';
 
-    const geo = createPackGeometry(aspect);
+    const geo = createPackGeometry(aspect, { lowPoly: isLowPoly });
     const packMesh = new THREE.Mesh(geo, mainMat);
     root.add(packMesh);
 
@@ -515,6 +1194,13 @@ export function createRealProductModel(prod, opts = {}) {
     return s;
   };
 
+  if (!root.userData.updateSteam) {
+    root.userData.updateSteam = () => {};
+  }
+  if (!root.userData.tick) {
+    root.userData.tick = () => {};
+  }
+
   root.userData.mainMat = mainMat;
   root.userData.rimMaterials = rimMaterials;
   root.userData.allMeshMats = allMeshMats;
@@ -531,11 +1217,12 @@ export function createRealProductModel(prod, opts = {}) {
   root.userData.setOpacity = (alpha) => {
     const isTrans = alpha < 0.999;
     allMeshMats.forEach((m) => {
-      if (m.transparent !== isTrans) {
+      const baseOp = (m.userData && m.userData.baseOpacity !== undefined) ? m.userData.baseOpacity : 1.0;
+      if (m.transparent !== isTrans && baseOp >= 0.999) {
         m.transparent = isTrans;
         m.needsUpdate = true;
       }
-      m.opacity = alpha;
+      m.opacity = alpha * baseOp;
     });
     rimMaterials.forEach((m) => {
       m.opacity = alpha * 0.28;

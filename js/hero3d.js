@@ -8,117 +8,201 @@ let colorCanvas = null;
 let colorCtx = null;
 
 export function getCssColor(varName, fallbackHex) {
-  if (!probeEl) {
+  if (!probeEl && typeof document !== 'undefined' && document.body) {
     probeEl = document.createElement('div');
     probeEl.style.display = 'none';
     document.body.appendChild(probeEl);
   }
-  probeEl.style.color = `var(${varName})`;
-  const computed = getComputedStyle(probeEl).color;
+  if (probeEl) {
+    probeEl.style.color = `var(${varName})`;
+    const computed = getComputedStyle(probeEl).color;
 
-  if (computed) {
-    if (computed.startsWith('color(srgb')) {
-      const match = computed.match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
-      if (match) {
-        return new THREE.Color(parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]));
+    if (computed) {
+      if (computed.startsWith('color(srgb')) {
+        const match = computed.match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
+        if (match) {
+          return new THREE.Color(parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]));
+        }
       }
-    }
-    try {
-      const c = new THREE.Color(computed);
-      if (!(c.r === 1 && c.g === 1 && c.b === 1 && !computed.includes('255, 255, 255'))) {
-        return c;
-      }
-    } catch {}
+      try {
+        const c = new THREE.Color(computed);
+        if (!(c.r === 1 && c.g === 1 && c.b === 1 && !computed.includes('255, 255, 255'))) {
+          return c;
+        }
+      } catch {}
 
-    if (!colorCanvas) {
-      colorCanvas = document.createElement('canvas');
-      colorCanvas.width = 1;
-      colorCanvas.height = 1;
-      colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
-    }
-    if (colorCtx) {
-      colorCtx.clearRect(0, 0, 1, 1);
-      colorCtx.fillStyle = computed;
-      colorCtx.fillRect(0, 0, 1, 1);
-      const d = colorCtx.getImageData(0, 0, 1, 1).data;
-      return new THREE.Color(d[0] / 255, d[1] / 255, d[2] / 255);
+      if (!colorCanvas) {
+        colorCanvas = document.createElement('canvas');
+        colorCanvas.width = 1;
+        colorCanvas.height = 1;
+        colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
+      }
+      if (colorCtx) {
+        colorCtx.clearRect(0, 0, 1, 1);
+        colorCtx.fillStyle = computed;
+        colorCtx.fillRect(0, 0, 1, 1);
+        const d = colorCtx.getImageData(0, 0, 1, 1).data;
+        return new THREE.Color(d[0] / 255, d[1] / 255, d[2] / 255);
+      }
     }
   }
 
   return new THREE.Color(fallbackHex);
 }
 
-function updateThemeUniforms(uniforms) {
-  const colA = getCssColor('--holo-a', '#FFC800');
-  const colB = getCssColor('--holo-b', '#FF5A00');
-  const colC = getCssColor('--holo-c', '#E10600');
+// Doc palette constants: noodle yellow #F5D547, spice red #E94B35, cream #F8F0DF, pop blue #354CBA
+const DOC_PALETTE = {
+  yellow: new THREE.Color('#F5D547'),
+  red: new THREE.Color('#E94B35'),
+  cream: new THREE.Color('#F8F0DF'),
+  blue: new THREE.Color('#354CBA')
+};
 
-  if (uniforms.uHoloA) uniforms.uHoloA.value.copy(colA);
-  if (uniforms.uHoloB) uniforms.uHoloB.value.copy(colB);
-  if (uniforms.uHoloC) uniforms.uHoloC.value.copy(colC);
+function updateThemeColors(state) {
+  const colA = getCssColor('--holo-a', '#F5D547');
+  const colB = getCssColor('--holo-b', '#E94B35');
+  const colC = getCssColor('--holo-c', '#354CBA');
+
+  // Blend CSS palette variables gently with the authentic doc palette so it stays warm & cohesive
+  state.rimColor.copy(colA).lerp(DOC_PALETTE.yellow, 0.35);
+  state.warmAccent.copy(colB).lerp(DOC_PALETTE.red, 0.35);
+  state.subAccent.copy(colC);
 
   const theme = document.documentElement.getAttribute('data-theme') || 'dark';
-  const isLight = theme === 'light';
-  if (uniforms.uLight) {
-    uniforms.uLight.value = isLight ? 1.0 : 0.0;
-  }
-  return isLight;
+  state.isLight = theme === 'light';
+  return state.isLight;
 }
 
-// --- Hologram Scan Transition Shader for Center Product ---
+/**
+ * Soft grounded contact shadow + subtle warm studio floor reflection
+ */
+function createStudioContactShadow() {
+  const group = new THREE.Group();
 
-const ScanTransitionVertexShader = /* glsl */ `
-  varying vec3 vWorldPos;
-  varying vec3 vNormal;
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    vNormal = normalize(normalMatrix * normal);
-    vec4 wp = modelMatrix * vec4(position, 1.0);
-    vWorldPos = wp.xyz;
-    gl_Position = projectionMatrix * viewMatrix * wp;
-  }
-`;
+  // 1. Dark soft ambient occlusion shadow directly beneath the cup base
+  const shadowCanvas = document.createElement('canvas');
+  shadowCanvas.width = 256;
+  shadowCanvas.height = 256;
+  const sCtx = shadowCanvas.getContext('2d');
+  const sGrad = sCtx.createRadialGradient(128, 128, 8, 128, 128, 120);
+  sGrad.addColorStop(0.0, 'rgba(12, 5, 2, 0.72)');
+  sGrad.addColorStop(0.38, 'rgba(18, 7, 3, 0.42)');
+  sGrad.addColorStop(0.72, 'rgba(24, 9, 4, 0.12)');
+  sGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+  sCtx.fillStyle = sGrad;
+  sCtx.fillRect(0, 0, 256, 256);
 
-const ScanTransitionFragmentShader = /* glsl */ `
-  uniform float uScanY;
-  uniform float uScanWidth;
-  uniform vec3 uScanColor;
-  uniform float uIntensity;
+  const shadowTex = new THREE.CanvasTexture(shadowCanvas);
+  shadowTex.colorSpace = THREE.SRGBColorSpace;
 
-  varying vec3 vWorldPos;
-  varying vec3 vNormal;
-  varying vec2 vUv;
-
-  void main() {
-    float dist = abs(vWorldPos.y - uScanY);
-    float beam = smoothstep(uScanWidth, 0.0, dist);
-
-    float core = smoothstep(uScanWidth * 0.25, 0.0, dist);
-    float glow = beam * 0.6 + core * 0.8;
-
-    vec3 col = uScanColor * (1.0 + core * 0.8);
-    float alpha = glow * uIntensity;
-
-    gl_FragColor = vec4(col, alpha);
-  }
-`;
-
-function createScanPlaneMaterial(sharedUniforms) {
-  return new THREE.ShaderMaterial({
-    vertexShader: ScanTransitionVertexShader,
-    fragmentShader: ScanTransitionFragmentShader,
-    uniforms: {
-      uScanY: { value: -2.0 },
-      uScanWidth: { value: 0.25 },
-      uScanColor: { value: sharedUniforms.uHoloA.value },
-      uIntensity: { value: 0.0 }
-    },
+  const shadowGeo = new THREE.PlaneGeometry(2.1, 2.1);
+  const shadowMat = new THREE.MeshBasicMaterial({
+    map: shadowTex,
     transparent: true,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
+    opacity: 0.75,
     depthWrite: false
   });
+  const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+  shadowMesh.rotation.x = -Math.PI / 2;
+  shadowMesh.userData.isContactGlow = true;
+  group.add(shadowMesh);
+
+  // 2. Subtle warm studio floor rim/plinth ring (non-neon, tasteful doc palette accent)
+  const glowCanvas = document.createElement('canvas');
+  glowCanvas.width = 256;
+  glowCanvas.height = 256;
+  const gCtx = glowCanvas.getContext('2d');
+  const gGrad = gCtx.createRadialGradient(128, 128, 24, 128, 128, 124);
+  gGrad.addColorStop(0.0, 'rgba(245, 213, 71, 0.22)');
+  gGrad.addColorStop(0.55, 'rgba(233, 75, 53, 0.10)');
+  gGrad.addColorStop(1.0, 'rgba(233, 75, 53, 0)');
+  gCtx.fillStyle = gGrad;
+  gCtx.fillRect(0, 0, 256, 256);
+
+  const glowTex = new THREE.CanvasTexture(glowCanvas);
+  glowTex.colorSpace = THREE.SRGBColorSpace;
+
+  const glowGeo = new THREE.PlaneGeometry(2.8, 2.8);
+  const glowMat = new THREE.MeshBasicMaterial({
+    map: glowTex,
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.45,
+    depthWrite: false
+  });
+  const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+  glowMesh.rotation.x = -Math.PI / 2;
+  glowMesh.position.y = -0.01;
+  glowMesh.userData.isContactGlow = true;
+  group.add(glowMesh);
+
+  group.userData.isContactGlow = true;
+  group.userData.shadowMat = shadowMat;
+  group.userData.glowMat = glowMat;
+  return group;
+}
+
+/**
+ * Fallback subtle rising steam wisps above the hero cup (used if product-models doesn't attach its own steam)
+ */
+function createHeroSteamWisps() {
+  const group = new THREE.Group();
+  group.userData.isSteam = true;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createRadialGradient(64, 64, 4, 64, 64, 60);
+  grad.addColorStop(0.0, 'rgba(248, 240, 223, 0.32)');
+  grad.addColorStop(0.45, 'rgba(248, 240, 223, 0.14)');
+  grad.addColorStop(1.0, 'rgba(248, 240, 223, 0.0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 128, 128);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+
+  const wisps = [];
+  const count = 7;
+  for (let i = 0; i < count; i++) {
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      opacity: 0.0,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    const wispGeo = new THREE.PlaneGeometry(0.42, 0.52);
+    const mesh = new THREE.Mesh(wispGeo, mat);
+    mesh.userData.isSteam = true;
+    const phase = (i / count) * Math.PI * 2;
+    const radius = 0.06 + (i % 3) * 0.07;
+    const speed = 0.28 + (i % 4) * 0.05;
+    wisps.push({ mesh, mat, phase, radius, speed, angle: i * 1.1 });
+    group.add(mesh);
+  }
+
+  group.userData.updateSteam = (t, baseH, isLight) => {
+    const maxAlpha = isLight ? 0.22 : 0.34;
+    for (let i = 0; i < wisps.length; i++) {
+      const w = wisps[i];
+      const progress = ((t * w.speed + w.phase / (Math.PI * 2)) % 1 + 1) % 1;
+      const y = baseH * 0.46 + progress * (baseH * 0.42);
+      const sway = Math.sin(t * 1.2 + w.phase) * 0.08 * (0.4 + progress);
+      w.mesh.position.set(
+        Math.cos(w.angle) * w.radius * (1 + progress * 0.5) + sway,
+        y,
+        Math.sin(w.angle) * w.radius * 0.6
+      );
+      const s = (0.65 + progress * 0.85) * (baseH / 1.8);
+      w.mesh.scale.set(s, s * 1.15, 1);
+      const fade = Math.sin(progress * Math.PI);
+      w.mat.opacity = fade * maxAlpha;
+    }
+  };
+
+  return group;
 }
 
 // --- Main Hero 3D Component ---
@@ -130,13 +214,16 @@ export function initHero3D() {
   if (!container || isHero3DInitialized) return;
   if (container.querySelector('canvas')) return;
   isHero3DInitialized = true;
-  container.style.zIndex = '0';
   container.style.pointerEvents = 'none';
 
   const scene = new THREE.Scene();
 
-  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-  camera.position.set(0, 0, 8.0);
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  camera.position.set(0, 0.15, 7.6);
+  camera.lookAt(0, 0, 0);
+
+  const isMobileViewport = () => window.innerWidth <= 860;
+  const getTargetDpr = () => Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1.5 : 2.0);
 
   const renderer = new THREE.WebGLRenderer({
     alpha: true,
@@ -144,10 +231,10 @@ export function initHero3D() {
     powerPreference: 'high-performance'
   });
   renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(getTargetDpr());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = 1.08;
   container.appendChild(renderer.domElement);
   setRendererCapabilities(renderer);
 
@@ -155,292 +242,215 @@ export function initHero3D() {
   window.__HERO_SCENE = scene;
   window.__HERO_CAMERA = camera;
 
-  // PMREM Environment for realistic packaging reflections
+  // Authentic Studio PMREM Environment
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
   pmremGenerator.compileEquirectangularShader();
   const roomEnv = new RoomEnvironment();
   const envTexture = pmremGenerator.fromScene(roomEnv, 0.04).texture;
   scene.environment = envTexture;
+  roomEnv.dispose();
+  pmremGenerator.dispose();
 
-  // Studio Lighting
-  const dirLight1 = new THREE.DirectionalLight(0xfff5e6, 1.3);
-  dirLight1.position.set(5, 7, 6);
-  scene.add(dirLight1);
+  // Realistic Studio Lighting (warm key light, soft cream fill, golden noodle rim, subtle pop-blue back kicker)
+  const hemiLight = new THREE.HemisphereLight(0xf8f0df, 0x261710, 0.65);
+  scene.add(hemiLight);
 
-  const dirLight2 = new THREE.DirectionalLight(0xffdfd0, 0.7);
-  dirLight2.position.set(-6, 3, 5);
-  scene.add(dirLight2);
+  const keyLight = new THREE.DirectionalLight(0xfff6e5, 1.45);
+  keyLight.position.set(4.2, 6.5, 5.8);
+  scene.add(keyLight);
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-  scene.add(ambientLight);
+  const fillLight = new THREE.DirectionalLight(0xf8f0df, 0.65);
+  fillLight.position.set(-5.0, 2.5, 4.2);
+  scene.add(fillLight);
 
-  const sharedUniforms = {
-    uTime: { value: 0 },
-    uHoloA: { value: new THREE.Color() },
-    uHoloB: { value: new THREE.Color() },
-    uHoloC: { value: new THREE.Color() },
-    uLight: { value: 0.0 }
+  const rimLight = new THREE.DirectionalLight(0xf5d547, 0.95);
+  rimLight.position.set(0.5, 4.5, -5.5);
+  scene.add(rimLight);
+
+  const kickerLight = new THREE.DirectionalLight(0xe94b35, 0.45);
+  kickerLight.position.set(-3.8, -2.5, -3.5);
+  scene.add(kickerLight);
+
+  const themeState = {
+    rimColor: new THREE.Color('#F5D547'),
+    warmAccent: new THREE.Color('#E94B35'),
+    subAccent: new THREE.Color('#354CBA'),
+    isLight: false
   };
-  const isLightInitial = updateThemeUniforms(sharedUniforms);
+  updateThemeColors(themeState);
 
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const worldGroup = new THREE.Group();
   scene.add(worldGroup);
 
-  // Center product group
+  // Foreground Hero Cup container (1 large cup in the center, front & prominent)
   const centerContainer = new THREE.Group();
   worldGroup.add(centerContainer);
 
-  window.__hero_debug = { worldGroup, centerContainer, scene, camera };
+  // Grounded contact shadow under the hero cup
+  const contactShadowGroup = createStudioContactShadow();
+  worldGroup.add(contactShadowGroup);
+
+  // Fallback subtle steam above the hero cup
+  const fallbackSteam = createHeroSteamWisps();
+  centerContainer.add(fallbackSteam);
+
+  // Optional subtle background companion models (smaller, further back, lower opacity so hero cup dominates)
+  const bgCompanionsGroup = new THREE.Group();
+  worldGroup.add(bgCompanionsGroup);
+
+  window.__hero_debug = { worldGroup, centerContainer, bgCompanionsGroup, scene, camera };
 
   const stageEl = document.querySelector('.hero-stage');
 
-  let currentCenterH = 1.5;
-  let currentStageHeightWorld = 2.1;
-
-  // 1. Center Real Product Setup
+  let currentCenterH = 2.2;
   let productsList = (window.MGF_PRODUCTS && Array.isArray(window.MGF_PRODUCTS)) ? window.MGF_PRODUCTS : [];
+  let cupProducts = [];
   let centerProductIndex = 0;
   let currentCenterModel = null;
-  let nextCenterModel = null;
   const centerModelCache = new Map();
+  const companionItems = [];
 
-  function getCenterModel(prod) {
+  let lastCanvasW = 0;
+  let lastCanvasH = 0;
+  let lastStageLeft = 0;
+  let lastStageTop = 0;
+  let lastStageW = 0;
+  let lastStageH = 0;
+
+  // Background companion slots: tucked softly behind the hero cup at negative Z and lower opacity
+  const COMPANION_SLOTS = [
+    { id: 'bg-left', type: 'cup', relX: -0.78, relY: -0.06, z: -1.35, scale: 0.44, rotY: 0.38, rotZ: 0.08, opacity: 0.46, phase: 0.8 },
+    { id: 'bg-right', type: 'pack', relX: 0.78, relY: -0.08, z: -1.35, scale: 0.42, rotY: -0.38, rotZ: -0.08, opacity: 0.46, phase: 2.9 }
+  ];
+
+  function buildHeroCupModel(prod) {
     if (!prod) return null;
     if (centerModelCache.has(prod.id)) {
-      const model = centerModelCache.get(prod.id);
-      if (model.userData && model.userData.setTargetHeight) {
-        model.userData.setTargetHeight(currentCenterH);
+      const cached = centerModelCache.get(prod.id);
+      if (cached.userData && cached.userData.setTargetHeight) {
+        cached.userData.setTargetHeight(currentCenterH);
       }
-      return model;
+      return cached;
     }
+
     const model = createRealProductModel(prod, {
-      withHoloRim: true,
-      withContactGlow: true,
-      rimColor: sharedUniforms.uHoloA.value
+      withHoloRim: false,
+      withContactGlow: false,
+      rimColor: themeState.rimColor,
+      steam: true,
+      open: true,
+      openLid: true,
+      peelLid: true,
+      withNoodles: true,
+      withToppings: true,
+      hero: true,
+      detail: 'high'
     });
+
     if (model.userData && model.userData.setTargetHeight) {
       model.userData.setTargetHeight(currentCenterH);
     }
+
     centerModelCache.set(prod.id, model);
     return model;
   }
 
-  // Scan transition overlay cylinder/mesh
-  const scanMat = createScanPlaneMaterial(sharedUniforms);
-  const scanGeo = new THREE.CylinderGeometry(1.6, 1.6, 3.2, 32, 1, true);
-  const scanMesh = new THREE.Mesh(scanGeo, scanMat);
-  scanMesh.userData.isBeamOrScan = true;
-  centerContainer.add(scanMesh);
-
-  let isTransitioning = false;
-  let transitionStartTime = 0;
-  const TRANSITION_DURATION = 1.2;
-
-  function setCenterProduct(index, animate = false) {
-    if (productsList.length === 0) return;
-    centerProductIndex = (index + productsList.length) % productsList.length;
-    const prod = productsList[centerProductIndex];
-    const newModel = getCenterModel(prod);
-
-    if (!animate || !currentCenterModel) {
-      if (currentCenterModel) centerContainer.remove(currentCenterModel);
-      currentCenterModel = newModel;
-      centerContainer.add(currentCenterModel);
-    } else {
-      nextCenterModel = newModel;
-      transitionStartTime = clock.getElapsedTime();
-      isTransitioning = true;
+  function hasBuiltInSteam(model) {
+    if (!model) return false;
+    if (
+      model.userData &&
+      (model.userData.steam ||
+        model.userData.steamGroup ||
+        model.userData.updateSteam ||
+        model.userData.tick ||
+        (Array.isArray(model.userData.steamMats) && model.userData.steamMats.length > 0))
+    ) {
+      return true;
     }
-  }
-
-  // 2. Projector Base (Glowing Rings + Light Cone)
-  const projectorGroup = new THREE.Group();
-  projectorGroup.position.set(0, -0.95, 0);
-  worldGroup.add(projectorGroup);
-
-  const ringGeos = [
-    new THREE.RingGeometry(0.20, 0.25, 48),
-    new THREE.RingGeometry(0.35, 0.41, 64),
-    new THREE.RingGeometry(0.50, 0.56, 64)
-  ];
-  const ringMeshes = [];
-
-  const ringInitColors = [
-    sharedUniforms.uHoloB.value,
-    sharedUniforms.uHoloA.value,
-    sharedUniforms.uHoloC.value
-  ];
-
-  ringGeos.forEach((geo, idx) => {
-    const mat = new THREE.MeshBasicMaterial({
-      color: ringInitColors[idx],
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: (0.36 - idx * 0.08) * (isLightInitial ? 1.4 : 1.0),
-      blending: isLightInitial ? THREE.NormalBlending : THREE.AdditiveBlending
+    let found = false;
+    model.traverse((child) => {
+      if (
+        child !== fallbackSteam &&
+        child.userData &&
+        (child.userData.isSteam || child.userData.phase !== undefined || child.name === 'steam')
+      ) {
+        found = true;
+      }
     });
-    const ring = new THREE.Mesh(geo, mat);
-    ring.rotation.x = -Math.PI / 2;
-    projectorGroup.add(ring);
-    ringMeshes.push(ring);
-  });
-
-  // Translucent Cone Light Beam
-  const coneGeo = new THREE.CylinderGeometry(0.18, 0.38, 1.8, 32, 16, true);
-  const coneMat = new THREE.ShaderMaterial({
-    vertexShader: /* glsl */ `
-      varying vec3 vWorldPos;
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        vec4 wp = modelMatrix * vec4(position, 1.0);
-        vWorldPos = wp.xyz;
-        gl_Position = projectionMatrix * viewMatrix * wp;
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform float uTime;
-      uniform vec3 uColor;
-      uniform float uLight;
-      varying vec3 vWorldPos;
-      varying vec2 vUv;
-      void main() {
-        float yFade = smoothstep(0.0, 0.88, 1.0 - vUv.y);
-        float beam = sin(vUv.x * 20.0 + uTime * 1.8) * 0.5 + 0.5;
-        float baseAlpha = (uLight > 0.5) ? (0.04 + 0.04 * beam) : (0.09 + 0.14 * beam);
-        float alpha = yFade * baseAlpha;
-        gl_FragColor = vec4(uColor, alpha);
-      }
-    `,
-    uniforms: {
-      uTime: sharedUniforms.uTime,
-      uColor: { value: sharedUniforms.uHoloB.value },
-      uLight: sharedUniforms.uLight
-    },
-    transparent: true,
-    blending: isLightInitial ? THREE.NormalBlending : THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-    depthWrite: false
-  });
-  const coneMesh = new THREE.Mesh(coneGeo, coneMat);
-  coneMesh.position.y = 1.05;
-  coneMesh.userData.isBeamOrScan = true;
-  projectorGroup.add(coneMesh);
-
-  // 3. Floating Particles Rising from Projector
-  const particleCount = 48;
-  const pPos = new Float32Array(particleCount * 3);
-  const pSpeed = new Float32Array(particleCount);
-  const pRadius = new Float32Array(particleCount);
-  const pAngle = new Float32Array(particleCount);
-
-  for (let i = 0; i < particleCount; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const r = 0.2 + Math.random() * 1.2;
-    pAngle[i] = angle;
-    pRadius[i] = r;
-    pSpeed[i] = 0.5 + Math.random() * 1.0;
-
-    pPos[i * 3 + 0] = Math.cos(angle) * r;
-    pPos[i * 3 + 1] = -1.65 + Math.random() * 3.6;
-    pPos[i * 3 + 2] = Math.sin(angle) * r;
+    return found;
   }
 
-  const particleGeo = new THREE.BufferGeometry();
-  particleGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+  function setCenterCup(index) {
+    if (cupProducts.length === 0) return;
+    centerProductIndex = (index + cupProducts.length) % cupProducts.length;
+    const prod = cupProducts[centerProductIndex];
+    const nextModel = buildHeroCupModel(prod);
+    if (!nextModel) return;
 
-  const pCanvas = document.createElement('canvas');
-  pCanvas.width = 32;
-  pCanvas.height = 32;
-  const pCtx = pCanvas.getContext('2d');
-  const radGrad = pCtx.createRadialGradient(16, 16, 0, 16, 16, 16);
-  radGrad.addColorStop(0, 'rgba(255, 90, 0, 1)');
-  radGrad.addColorStop(0.4, 'rgba(225, 6, 0, 0.85)');
-  radGrad.addColorStop(1, 'rgba(176, 0, 0, 0)');
-  pCtx.fillStyle = radGrad;
-  pCtx.fillRect(0, 0, 32, 32);
-  const pTexture = new THREE.CanvasTexture(pCanvas);
+    if (currentCenterModel && currentCenterModel !== nextModel) {
+      centerContainer.remove(currentCenterModel);
+    }
+    currentCenterModel = nextModel;
+    centerContainer.add(currentCenterModel);
 
-  const particleMat = new THREE.PointsMaterial({
-    map: pTexture,
-    size: 0.16,
-    transparent: true,
-    blending: isLightInitial ? THREE.NormalBlending : THREE.AdditiveBlending,
-    depthWrite: false,
-    color: isLightInitial ? sharedUniforms.uHoloB.value : sharedUniforms.uHoloA.value
-  });
-  const particleSystem = new THREE.Points(particleGeo, particleMat);
-  particleSystem.userData.isBeamOrScan = true;
-  worldGroup.add(particleSystem);
-
-  // 4. Four Orbiters close around center with depth overlap (2 behind, 2 in front-low)
-  // Symmetric and evenly spaced, each ≈ 40–45% of center product size (0.42x)
-  const orbiterItems = [];
-
-  const ORBITER_CONFIGS = [
-    // 2 behind (higher, z < 0, peeking beside the center, >=70% visible)
-    { id: 'back-left',   side: 'left',  type: 'pack', relX: -0.44, relY:  0.18, z: -0.55, phase: 0 },
-    { id: 'back-right',  side: 'right', type: 'pack', relX:  0.44, relY:  0.18, z: -0.55, phase: (1 / 3) * Math.PI * 2 },
-    // 2 in front-low (lower, z > 0, framing lower quarters of center product)
-    { id: 'front-left',  side: 'left',  type: 'cup',  relX: -0.38, relY: -0.24, z:  0.55, phase: (2 / 3) * Math.PI * 2 },
-    { id: 'front-right', side: 'right', type: 'bowl', relX:  0.38, relY: -0.24, z:  0.55, phase: Math.PI }
-  ];
-
-  function findProductForSlot(type, usedIds) {
-    if (!productsList || productsList.length === 0) return null;
-    const match = productsList.find((p) => p.type === type && !usedIds.has(p.id));
-    if (match) return match;
-    const anyUnused = productsList.find((p) => !usedIds.has(p.id));
-    return anyUnused || productsList[0];
+    // Show fallback steam only if product-models.js didn't already include its own steam
+    fallbackSteam.visible = !hasBuiltInSteam(currentCenterModel);
   }
 
-  function populateOrbiters() {
-    while (orbiterItems.length > 0) {
-      const it = orbiterItems.pop();
-      worldGroup.remove(it.mesh);
+  function populateCompanions() {
+    while (companionItems.length > 0) {
+      const item = companionItems.pop();
+      bgCompanionsGroup.remove(item.mesh);
     }
 
     if (productsList.length === 0) return;
 
     const usedIds = new Set();
-    const centerProd = productsList[centerProductIndex];
-    if (centerProd) usedIds.add(centerProd.id);
+    const activeHero = cupProducts[centerProductIndex];
+    if (activeHero) usedIds.add(activeHero.id);
 
-    const targetOrbiterH = currentCenterH * 0.42;
-
-    ORBITER_CONFIGS.forEach((slotDef) => {
-      const prod = findProductForSlot(slotDef.type, usedIds);
-      if (prod) usedIds.add(prod.id);
+    COMPANION_SLOTS.forEach((slot) => {
+      const prod =
+        productsList.find((p) => p.type === slot.type && !usedIds.has(p.id)) ||
+        productsList.find((p) => !usedIds.has(p.id));
+      if (!prod) return;
+      usedIds.add(prod.id);
 
       const mesh = createRealProductModel(prod, {
-        withHoloRim: true,
-        withContactGlow: true,
-        rimColor: sharedUniforms.uHoloA.value
+        withHoloRim: false,
+        withContactGlow: false,
+        rimColor: themeState.rimColor,
+        steam: false,
+        open: false
       });
 
-      if (mesh.userData && mesh.userData.setTargetHeight) {
-        mesh.userData.setTargetHeight(targetOrbiterH);
+      if (mesh.userData && mesh.userData.setOpacity) {
+        mesh.userData.setOpacity(slot.opacity);
       }
 
-      worldGroup.add(mesh);
-      orbiterItems.push({
-        mesh,
-        def: slotDef
-      });
+      bgCompanionsGroup.add(mesh);
+      companionItems.push({ mesh, slot });
     });
   }
 
-  // --- Initial Product Loading & Default Selection ---
   function initProductsData() {
     productsList = (window.MGF_PRODUCTS && Array.isArray(window.MGF_PRODUCTS)) ? window.MGF_PRODUCTS : [];
-    if (productsList.length > 0) {
-      const defaultIdx = productsList.findIndex((p) => p.id && p.id.includes('cung-dinh-bo-ham'));
-      centerProductIndex = defaultIdx >= 0 ? defaultIdx : 0;
-      setCenterProduct(centerProductIndex, false);
-      populateOrbiters();
+    if (productsList.length === 0) return;
+
+    // Hero focuses on authentic cup models; prioritize cups with photo wraps/lids
+    cupProducts = productsList.filter((p) => p.type === 'cup');
+    if (cupProducts.length === 0) {
+      cupProducts = productsList.slice();
     }
+
+    const preferredIdx = cupProducts.findIndex((p) => p.id === 'cung-dinh-bo-ham' || p.id === 'cupnoodle-seafood');
+    centerProductIndex = preferredIdx >= 0 ? preferredIdx : 0;
+
+    setCenterCup(centerProductIndex);
+    populateCompanions();
+    updateStagePlacement();
   }
 
   initProductsData();
@@ -450,235 +460,254 @@ export function initHero3D() {
         clearInterval(checkTimer);
         initProductsData();
       }
-    }, 150);
+    }, 120);
   }
 
-  // --- Theme Mode Application Function ---
   function applyThemeMode() {
-    const isLight = updateThemeUniforms(sharedUniforms);
-    const targetBlending = isLight ? THREE.NormalBlending : THREE.AdditiveBlending;
+    const isLight = updateThemeColors(themeState);
 
-    if (ringMeshes[0]) {
-      ringMeshes[0].material.color.copy(isLight ? sharedUniforms.uHoloC.value : sharedUniforms.uHoloB.value);
-      ringMeshes[0].material.blending = targetBlending;
-      ringMeshes[0].material.opacity = isLight ? 0.35 : 0.36;
-      ringMeshes[0].material.needsUpdate = true;
+    hemiLight.intensity = isLight ? 0.82 : 0.65;
+    keyLight.intensity = isLight ? 1.55 : 1.45;
+    rimLight.color.copy(themeState.rimColor);
+    kickerLight.color.copy(themeState.warmAccent);
+
+    if (contactShadowGroup.userData.shadowMat) {
+      contactShadowGroup.userData.shadowMat.opacity = isLight ? 0.42 : 0.72;
     }
-    if (ringMeshes[1]) {
-      ringMeshes[1].material.color.copy(isLight ? sharedUniforms.uHoloB.value : sharedUniforms.uHoloA.value);
-      ringMeshes[1].material.blending = targetBlending;
-      ringMeshes[1].material.opacity = isLight ? 0.25 : 0.28;
-      ringMeshes[1].material.needsUpdate = true;
-    }
-    if (ringMeshes[2]) {
-      ringMeshes[2].material.color.copy(sharedUniforms.uHoloC.value);
-      ringMeshes[2].material.blending = targetBlending;
-      ringMeshes[2].material.opacity = isLight ? 0.15 : 0.2;
-      ringMeshes[2].material.needsUpdate = true;
+    if (contactShadowGroup.userData.glowMat) {
+      contactShadowGroup.userData.glowMat.color.copy(themeState.rimColor);
+      contactShadowGroup.userData.glowMat.opacity = isLight ? 0.28 : 0.42;
     }
 
-    if (coneMat) {
-      if (coneMat.uniforms.uColor) {
-        coneMat.uniforms.uColor.value.copy(isLight ? sharedUniforms.uHoloA.value : sharedUniforms.uHoloB.value);
-      }
-      coneMat.blending = targetBlending;
-      coneMat.needsUpdate = true;
-    }
-
-    if (particleMat) {
-      particleMat.color.copy(isLight ? sharedUniforms.uHoloB.value : sharedUniforms.uHoloA.value);
-      particleMat.blending = targetBlending;
-      particleMat.needsUpdate = true;
-    }
-
-    const activeRimColor = sharedUniforms.uHoloA.value;
     centerModelCache.forEach((model) => {
-      if (model.userData.updateRimColor) model.userData.updateRimColor(activeRimColor);
-    });
-    orbiterItems.forEach(({ mesh }) => {
-      if (mesh.userData.updateRimColor) mesh.userData.updateRimColor(activeRimColor);
+      if (model.userData && model.userData.updateRimColor) {
+        model.userData.updateRimColor(themeState.rimColor);
+      }
     });
   }
 
-  // --- Stage Projection to fill .hero-stage rect ---
-  function updateStagePlacement() {
+  applyThemeMode();
+
+  // --- Fit the Hero Cup into .hero-stage ---
+  function updateStagePlacement(force = false) {
     if (!container) return;
     const canvasRect = container.getBoundingClientRect();
-    const stageRect = stageEl ? stageEl.getBoundingClientRect() : canvasRect;
+    const stageElCurrent = stageEl || document.querySelector('.hero-stage');
+    const stageRect = stageElCurrent ? stageElCurrent.getBoundingClientRect() : canvasRect;
     if (canvasRect.width === 0 || canvasRect.height === 0 || stageRect.height === 0) return;
 
     const canvasW = canvasRect.width;
     const canvasH = canvasRect.height;
-    const aspect = canvasW / canvasH;
 
+    const stageChanged =
+      force ||
+      Math.abs(canvasW - lastCanvasW) > 0.5 ||
+      Math.abs(canvasH - lastCanvasH) > 0.5 ||
+      Math.abs(stageRect.left - lastStageLeft) > 0.5 ||
+      Math.abs(stageRect.top - lastStageTop) > 0.5 ||
+      Math.abs(stageRect.width - lastStageW) > 0.5 ||
+      Math.abs(stageRect.height - lastStageH) > 0.5;
+
+    if (!stageChanged) return;
+
+    lastCanvasW = canvasW;
+    lastCanvasH = canvasH;
+    lastStageLeft = stageRect.left;
+    lastStageTop = stageRect.top;
+    lastStageW = stageRect.width;
+    lastStageH = stageRect.height;
+
+    const dpr = getTargetDpr();
+    if (renderer.getPixelRatio() !== dpr) {
+      renderer.setPixelRatio(dpr);
+    }
+
+    const aspect = canvasW / canvasH;
     if (Math.abs(camera.aspect - aspect) > 0.001) {
       camera.aspect = aspect;
       camera.updateProjectionMatrix();
-      renderer.setSize(canvasW, canvasH);
     }
+    renderer.setSize(canvasW, canvasH, false);
 
     const fovRad = (camera.fov * Math.PI) / 360;
-    const vHeightWorld = 2 * Math.tan(fovRad) * camera.position.z;
+    const dist = camera.position.z;
+    const vHeightWorld = 2 * Math.tan(fovRad) * dist;
     const vWidthWorld = vHeightWorld * aspect;
 
-    // Convert .hero-stage center to world coordinates relative to full-bleed canvas
+    // Map .hero-stage center to world coordinates
     const stageCenterX = (stageRect.left - canvasRect.left) + stageRect.width * 0.5;
     const stageCenterY = (stageRect.top - canvasRect.top) + stageRect.height * 0.5;
 
     const targetWorldX = ((stageCenterX / canvasW) - 0.5) * vWidthWorld;
     const targetWorldY = -((stageCenterY / canvasH) - 0.5) * vHeightWorld;
     const stageHeightWorld = (stageRect.height / canvasH) * vHeightWorld;
-
-    currentStageHeightWorld = stageHeightWorld;
     const stageWidthWorld = (stageRect.width / canvasW) * vWidthWorld;
-    const isMobileStage = window.innerWidth <= 860;
-    // Center ≈ 70% of stage height on desktop and mobile
-    currentCenterH = stageHeightWorld * 0.70;
+
+    const isMobile = isMobileViewport();
+
+    // Size the main hero cup to fill ~78% of .hero-stage height while fitting cleanly within stage width
+    const desiredCupH = stageHeightWorld * (isMobile ? 0.78 : 0.80);
+    const maxCupByWidth = stageWidthWorld * (isMobile ? 0.72 : 0.58);
+    currentCenterH = Math.min(desiredCupH, maxCupByWidth * 1.25);
 
     worldGroup.position.set(targetWorldX, targetWorldY, 0);
+    worldGroup.scale.set(1, 1, 1);
 
     if (currentCenterModel && currentCenterModel.userData && currentCenterModel.userData.setTargetHeight) {
       currentCenterModel.userData.setTargetHeight(currentCenterH);
     }
-    if (nextCenterModel && nextCenterModel.userData && nextCenterModel.userData.setTargetHeight) {
-      nextCenterModel.userData.setTargetHeight(currentCenterH);
-    }
 
-    const targetOrbiterH = currentCenterH * 0.42;
-    orbiterItems.forEach(({ mesh, def }) => {
+    // Position grounded contact shadow right under the hero cup base
+    const shadowScale = currentCenterH / 2.0;
+    contactShadowGroup.position.set(0, -currentCenterH * 0.48, 0);
+    contactShadowGroup.scale.setScalar(shadowScale);
+
+    // Position subtle background companions on desktop/tablet; hide or tuck on very narrow screens so cup stays clean
+    bgCompanionsGroup.visible = stageRect.width >= 340;
+    companionItems.forEach(({ mesh, slot }) => {
+      const compH = currentCenterH * slot.scale * (isMobile ? 0.85 : 1.0);
       if (mesh.userData && mesh.userData.setTargetHeight) {
-        mesh.userData.setTargetHeight(targetOrbiterH);
+        mesh.userData.setTargetHeight(compH);
       }
-      mesh.position.set(def.relX * currentCenterH, def.relY * currentCenterH, def.z);
+      const spreadFactor = isMobile ? 0.78 : 1.0;
+      const xOffset = Math.min(stageWidthWorld * 0.36, slot.relX * currentCenterH * spreadFactor);
+      const clampedX = slot.relX < 0 ? -Math.abs(xOffset) : Math.abs(xOffset);
+      mesh.position.set(clampedX, slot.relY * currentCenterH, slot.z);
+      if (mesh.userData && mesh.userData.setOpacity) {
+        mesh.userData.setOpacity(isMobile ? slot.opacity * 0.75 : slot.opacity);
+      }
     });
 
-    const baseScale = currentCenterH / 1.5;
-    projectorGroup.position.set(0, -0.52 * currentCenterH, 0);
-    projectorGroup.scale.set(baseScale, baseScale, baseScale);
-
-    coneMesh.position.y = 0.90;
-    coneMesh.scale.set(1.0, 1.0, 1.0);
-
-    scanMesh.scale.set(baseScale, baseScale, baseScale);
-    scanMesh.position.set(0, 0.05 * currentCenterH, 0);
-
-    // Fit the WHOLE group (center + orbiters + ring) inside .hero-stage rect with contain
-    worldGroup.scale.set(1.0, 1.0, 1.0);
+    // Project centerContainer bounding box to ensure hero cup stays strictly inside .hero-stage rect
     worldGroup.updateMatrixWorld(true);
 
-    let minX = Infinity, maxX = -Infinity;
-    let minY = Infinity, maxY = -Infinity;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
     const corner = new THREE.Vector3();
 
-    worldGroup.traverse((child) => {
-      if (
-        child.isMesh &&
-        !child.userData.isContactGlow &&
-        !child.userData.isBeamOrScan &&
-        child !== scanMesh &&
-        child !== coneMesh &&
-        child.geometry
-      ) {
-        if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
-        const b = child.geometry.boundingBox;
-        for (let ix = 0; ix < 2; ix++) {
-          for (let iy = 0; iy < 2; iy++) {
-            for (let iz = 0; iz < 2; iz++) {
-              corner.set(
-                ix === 0 ? b.min.x : b.max.x,
-                iy === 0 ? b.min.y : b.max.y,
-                iz === 0 ? b.min.z : b.max.z
-              );
-              corner.applyMatrix4(child.matrixWorld);
-              corner.project(camera);
-              const sx = (corner.x * 0.5 + 0.5) * canvasW;
-              const sy = (-(corner.y * 0.5) + 0.5) * canvasH;
-              if (sx < minX) minX = sx;
-              if (sx > maxX) maxX = sx;
-              if (sy < minY) minY = sy;
-              if (sy > maxY) maxY = sy;
+    if (currentCenterModel) {
+      currentCenterModel.traverse((child) => {
+        if (
+          child.isMesh &&
+          !child.userData.isContactGlow &&
+          !child.userData.isSteam &&
+          child.userData.phase === undefined &&
+          child.geometry
+        ) {
+          if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
+          const b = child.geometry.boundingBox;
+          for (let ix = 0; ix < 2; ix++) {
+            for (let iy = 0; iy < 2; iy++) {
+              for (let iz = 0; iz < 2; iz++) {
+                corner.set(
+                  ix === 0 ? b.min.x : b.max.x,
+                  iy === 0 ? b.min.y : b.max.y,
+                  iz === 0 ? b.min.z : b.max.z
+                );
+                corner.applyMatrix4(child.matrixWorld);
+                corner.project(camera);
+                const sx = (corner.x * 0.5 + 0.5) * canvasW;
+                const sy = (-(corner.y * 0.5) + 0.5) * canvasH;
+                if (sx < minX) minX = sx;
+                if (sx > maxX) maxX = sx;
+                if (sy < minY) minY = sy;
+                if (sy > maxY) maxY = sy;
+              }
             }
           }
         }
-      }
-    });
+      });
+    }
 
     if (minX !== Infinity && maxX > minX && maxY > minY) {
-      const groupW = maxX - minX;
-      const groupH = maxY - minY;
-      let containScale;
-      if (isMobileStage) {
-        // Fit by width: the group should span ~90% of the stage width, center ≈ 70% of the stage height, centered
-        const targetW = stageRect.width * 0.90;
-        const scaleByWidth = targetW / groupW;
-        const maxH = Math.max(10, stageRect.height - 16);
-        const maxScaleByHeight = maxH / groupH;
-        containScale = Math.min(scaleByWidth, maxScaleByHeight);
-      } else {
-        const padX = 8;
-        const padY = 12;
-        const maxAllowedW = Math.max(10, stageRect.width - padX * 2);
-        const maxAllowedH = Math.max(10, stageRect.height - padY * 2);
-        containScale = Math.min(1.0, maxAllowedW / groupW, maxAllowedH / groupH);
-      }
-      worldGroup.scale.set(containScale, containScale, containScale);
+      const cupScreenW = maxX - minX;
+      const cupScreenH = maxY - minY;
+      const padX = isMobile ? 12 : 16;
+      const padY = isMobile ? 10 : 14;
+      const maxAllowedW = Math.max(20, stageRect.width - padX * 2);
+      const maxAllowedH = Math.max(20, stageRect.height - padY * 2);
+
+      const containScale = Math.min(1.0, maxAllowedW / cupScreenW, maxAllowedH / cupScreenH);
+      worldGroup.scale.setScalar(containScale);
       worldGroup.updateMatrixWorld(true);
 
-      // Center the group within the stage rect both horizontally and vertically
-      const currentGroupCenterX = (minX + maxX) * 0.5;
-      const currentGroupCenterY = (minY + maxY) * 0.5;
-      const scaledOffsetX = (currentGroupCenterX - stageCenterX) * containScale;
-      const scaledOffsetY = (currentGroupCenterY - stageCenterY) * containScale;
-      const adjustScreenX = -scaledOffsetX;
-      const adjustScreenY = -scaledOffsetY;
+      const cupCenterX = (minX + maxX) * 0.5;
+      const cupCenterY = (minY + maxY) * 0.5;
+      const adjustScreenX = -(cupCenterX - stageCenterX) * containScale;
+      const adjustScreenY = -(cupCenterY - stageCenterY) * containScale;
       const adjustWorldX = (adjustScreenX / canvasW) * vWidthWorld;
       const adjustWorldY = -(adjustScreenY / canvasH) * vHeightWorld;
+
       worldGroup.position.set(targetWorldX + adjustWorldX, targetWorldY + adjustWorldY, 0);
 
       window.__HERO_DEBUG = {
-        minX, maxX, minY, maxY, groupW, groupH, containScale,
+        minX,
+        maxX,
+        minY,
+        maxY,
+        groupW: cupScreenW * containScale,
+        groupH: cupScreenH * containScale,
+        containScale,
         worldPosX: worldGroup.position.x,
         worldPosY: worldGroup.position.y,
         worldScale: worldGroup.scale.x,
         centerModel: Boolean(currentCenterModel),
-        orbitersCount: orbiterItems.length,
-        stageRect: { width: stageRect.width, height: stageRect.height, left: stageRect.left, top: stageRect.top }
-      };
-    } else {
-      window.__HERO_DEBUG = {
-        minX, maxX, minY, maxY,
-        noBounds: true,
-        centerModel: Boolean(currentCenterModel),
-        orbitersCount: orbiterItems.length
+        companionsCount: companionItems.length,
+        stageRect: {
+          width: stageRect.width,
+          height: stageRect.height,
+          left: stageRect.left,
+          top: stageRect.top
+        }
       };
     }
   }
 
-  // --- Parallax & Mouse Interactivity ---
-  const mouse = { x: 0, y: 0, targetX: 0, targetY: 0 };
+  // --- Pointer & Gyro Tilt Interaction ---
+  const pointer = { x: 0, y: 0, targetX: 0, targetY: 0 };
+
   function onPointerMove(e) {
-    const normX = (e.clientX / window.innerWidth) * 2 - 1;
-    const normY = -(e.clientY / window.innerHeight) * 2 + 1;
-    mouse.targetX = normX * 0.25;
-    mouse.targetY = normY * 0.18;
+    if (prefersReducedMotion) return;
+    const normX = (e.clientX / Math.max(1, window.innerWidth)) * 2 - 1;
+    const normY = -(e.clientY / Math.max(1, window.innerHeight)) * 2 + 1;
+    pointer.targetX = THREE.MathUtils.clamp(normX, -1, 1) * 0.32;
+    pointer.targetY = THREE.MathUtils.clamp(normY, -1, 1) * 0.22;
   }
+
+  function onDeviceOrientation(e) {
+    if (prefersReducedMotion || e.gamma == null || e.beta == null) return;
+    const gx = THREE.MathUtils.clamp(e.gamma / 35, -1, 1);
+    const gy = THREE.MathUtils.clamp((e.beta - 45) / 35, -1, 1);
+    pointer.targetX = gx * 0.28;
+    pointer.targetY = -gy * 0.18;
+  }
+
   window.addEventListener('pointermove', onPointerMove, { passive: true });
+  window.addEventListener('deviceorientation', onDeviceOrientation, { passive: true });
 
   function onResize() {
-    updateStagePlacement();
+    updateStagePlacement(true);
+    if (prefersReducedMotion) {
+      renderFrame(0.5);
+    }
   }
 
-  const resizeObserver = new ResizeObserver(onResize);
+  const resizeObserver = new ResizeObserver(() => onResize());
   resizeObserver.observe(container);
   if (stageEl) resizeObserver.observe(stageEl);
-  window.addEventListener('resize', onResize);
-  updateStagePlacement();
+  window.addEventListener('resize', onResize, { passive: true });
+  window.addEventListener('scroll', () => updateStagePlacement(false), { passive: true });
 
   window.addEventListener('themechange', () => {
     applyThemeMode();
+    if (prefersReducedMotion) {
+      renderFrame(0.5);
+    }
   });
 
-  // --- Visibility & Offscreen Caching ---
+  // --- Visibility & Off-screen Pause ---
   let isVisible = true;
   let isTabActive = !document.hidden;
 
@@ -688,130 +717,81 @@ export function initHero3D() {
         isVisible = entry.isIntersecting;
       });
     },
-    { threshold: 0.05 }
+    { threshold: 0.02 }
   );
   intersectionObserver.observe(container);
 
-  document.addEventListener('visibilitychange', () => {
+  function onVisibilityChange() {
     isTabActive = !document.hidden;
-  });
+  }
+  document.addEventListener('visibilitychange', onVisibilityChange);
 
-  // --- Animation & Hologram Transition Loop ---
+  // --- Animation Loop ---
   let animationFrameId = null;
   const clock = new THREE.Clock();
-  let lastTime = 0;
-  let cycleTimer = 0;
+
+  // Forward tilt (~14°) so the top rim, peeled foil lid, curly noodles & toppings are clearly visible
+  const BASE_PITCH = 14 * (Math.PI / 180);
 
   function renderFrame(timeSec) {
-    const dt = timeSec - lastTime;
-    lastTime = timeSec;
-    sharedUniforms.uTime.value = timeSec;
+    updateStagePlacement(false);
 
-    updateStagePlacement();
+    pointer.x += (pointer.targetX - pointer.x) * 0.06;
+    pointer.y += (pointer.targetY - pointer.y) * 0.06;
 
-    mouse.x += (mouse.targetX - mouse.x) * 0.05;
-    mouse.y += (mouse.targetY - mouse.y) * 0.05;
-    worldGroup.rotation.y = mouse.x * 0.45;
-    worldGroup.rotation.x = -mouse.y * 0.25;
-
-    // Cycle center product every ~6s
-    if (!prefersReducedMotion && productsList.length > 1) {
-      cycleTimer += dt;
-      if (cycleTimer >= 6.0 && !isTransitioning) {
-        cycleTimer = 0;
-        setCenterProduct(centerProductIndex + 1, true);
-        populateOrbiters();
-      }
-    }
-
-    // Handle scan transition animation
-    if (isTransitioning) {
-      const progress = (timeSec - transitionStartTime) / TRANSITION_DURATION;
-      if (progress < 1.0) {
-        const scanY = 1.6 - progress * 3.2;
-        scanMat.uniforms.uScanY.value = scanY;
-        scanMat.uniforms.uIntensity.value = Math.sin(progress * Math.PI) * 1.5;
-
-        if (progress >= 0.5 && nextCenterModel && currentCenterModel !== nextCenterModel) {
-          centerContainer.remove(currentCenterModel);
-          currentCenterModel = nextCenterModel;
-          centerContainer.add(currentCenterModel);
-        }
-      } else {
-        isTransitioning = false;
-        scanMat.uniforms.uIntensity.value = 0.0;
-        if (nextCenterModel && currentCenterModel !== nextCenterModel) {
-          centerContainer.remove(currentCenterModel);
-          currentCenterModel = nextCenterModel;
-          centerContainer.add(currentCenterModel);
-        }
-        nextCenterModel = null;
-      }
-    }
-
-    const omega = 1.35;
-    const swayAngleMax = 18 * Math.PI / 180;
-    const pitchAngle = 8 * Math.PI / 180;
-    const bobMax = 0.06 * (currentCenterH / 1.5);
-
-    // Center Product: upright, forward tilt ~8°, calm synchronized yaw sway ±18° + bob
     if (currentCenterModel) {
-      const t = timeSec * omega;
-      const sway = Math.sin(t) * swayAngleMax;
-      const bob = Math.sin(t) * bobMax;
-
-      currentCenterModel.position.set(0, 0.05 * currentCenterH + bob, 0);
-      currentCenterModel.rotation.set(pitchAngle, sway, 0);
-    }
-
-    // Projector rings counter rotation
-    if (ringMeshes[0]) ringMeshes[0].rotation.z = timeSec * 0.35;
-    if (ringMeshes[1]) ringMeshes[1].rotation.z = -timeSec * 0.5;
-    if (ringMeshes[2]) ringMeshes[2].rotation.z = timeSec * 0.22;
-
-    // Rising Particles
-    const posArr = particleGeo.attributes.position.array;
-    const pScale = currentCenterH / 1.5;
-    for (let i = 0; i < particleCount; i++) {
-      let py = posArr[i * 3 + 1];
-      py += pSpeed[i] * 0.018 * pScale;
-      if (py > 2.0 * pScale) py = -1.65 * pScale;
-      posArr[i * 3 + 1] = py;
-
-      pAngle[i] += 0.007;
-      const r = pRadius[i] * (0.8 + (py / pScale + 1.65) * 0.15) * pScale;
-      posArr[i * 3 + 0] = Math.cos(pAngle[i]) * r;
-      posArr[i * 3 + 2] = Math.sin(pAngle[i]) * r;
-    }
-    particleGeo.attributes.position.needsUpdate = true;
-
-    // Four Orbiters close around center with depth overlap (2 behind, 2 in front-low)
-    // Symmetric and evenly spaced, synchronized sway
-    orbiterItems.forEach(({ mesh, def }) => {
-      const t = timeSec * omega + def.phase;
-      const sway = Math.sin(t) * swayAngleMax;
-      const bob = Math.sin(t) * bobMax;
-
-      const ox = def.relX * currentCenterH;
-      const oy = def.relY * currentCenterH + bob;
-      const oz = def.z;
-
-      mesh.position.set(ox, oy, oz);
-      mesh.rotation.x = pitchAngle;
-      mesh.rotation.z = 0;
-
-      if (def.side === 'left') {
-        mesh.rotation.y = (20 * Math.PI / 180) + sway;
+      if (prefersReducedMotion) {
+        currentCenterModel.position.set(0, 0, 0);
+        currentCenterModel.rotation.set(BASE_PITCH, -0.18, 0.02);
       } else {
-        mesh.rotation.y = (-20 * Math.PI / 180) - sway;
+        // Calm, showcase rotation showing off the 360° label wrap + front face, plus gentle float
+        const slowYaw = Math.sin(timeSec * 0.55) * 0.42 + pointer.x * 0.65;
+        const tiltPitch = BASE_PITCH - pointer.y * 0.32 + Math.cos(timeSec * 0.7) * 0.03;
+        const tiltRoll = -pointer.x * 0.08 + Math.sin(timeSec * 0.45) * 0.025;
+        const bobY = Math.sin(timeSec * 1.35) * (0.035 * currentCenterH);
+
+        currentCenterModel.position.set(0, bobY, 0);
+        currentCenterModel.rotation.set(tiltPitch, slowYaw, tiltRoll);
+
+        // Drive built-in steam/animation hooks on product-models if present
+        if (currentCenterModel.userData) {
+          if (typeof currentCenterModel.userData.updateSteam === 'function') {
+            currentCenterModel.userData.updateSteam(timeSec);
+          }
+          if (typeof currentCenterModel.userData.tick === 'function') {
+            currentCenterModel.userData.tick(timeSec);
+          }
+        }
+      }
+    }
+
+    if (fallbackSteam.visible && fallbackSteam.userData.updateSteam) {
+      fallbackSteam.userData.updateSteam(prefersReducedMotion ? 1.2 : timeSec, currentCenterH, themeState.isLight);
+    }
+
+    // Subtle parallax & float on background companions
+    companionItems.forEach(({ mesh, slot }) => {
+      if (prefersReducedMotion) {
+        mesh.rotation.set(0.12, slot.rotY, slot.rotZ);
+      } else {
+        const t = timeSec * 0.9 + slot.phase;
+        const bob = Math.sin(t) * (0.025 * currentCenterH);
+        mesh.position.y = slot.relY * currentCenterH + bob;
+        mesh.rotation.set(
+          0.14 - pointer.y * 0.15,
+          slot.rotY + Math.sin(t * 0.6) * 0.16 + pointer.x * 0.25,
+          slot.rotZ
+        );
       }
     });
 
     renderer.render(scene, camera);
   }
 
+  updateStagePlacement(true);
+
   if (prefersReducedMotion) {
-    renderFrame(1.0);
+    renderFrame(0.5);
     return;
   }
 
@@ -828,7 +808,9 @@ export function initHero3D() {
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
     resizeObserver.disconnect();
     intersectionObserver.disconnect();
+    document.removeEventListener('visibilitychange', onVisibilityChange);
     window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('deviceorientation', onDeviceOrientation);
     window.removeEventListener('resize', onResize);
     renderer.dispose();
   };

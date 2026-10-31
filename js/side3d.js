@@ -109,7 +109,7 @@ function registerOutlineMaterial(mat) {
   return mat;
 }
 
-// --- Dynamic Palette Canvas Textures for Procedural Models ---
+// --- Dynamic Palette Canvas Textures for Procedural Fallback Models ---
 
 function createCupLabelTexture() {
   const canvas = document.createElement('canvas');
@@ -230,27 +230,27 @@ const texturedMaterials = {
 function refreshTexturedMaterials() {
   const newCupTex = createCupLabelTexture();
   texturedMaterials.cup.forEach((mat) => {
-    mat.map.dispose();
+    if (mat.map) mat.map.dispose();
     mat.map = newCupTex;
     mat.needsUpdate = true;
   });
 
   const newPackTex = createPackLabelTexture();
   texturedMaterials.pack.forEach((mat) => {
-    mat.map.dispose();
+    if (mat.map) mat.map.dispose();
     mat.map = newPackTex;
     mat.needsUpdate = true;
   });
 
   const newSachetTex = createSachetLabelTexture();
   texturedMaterials.sachet.forEach((mat) => {
-    mat.map.dispose();
+    if (mat.map) mat.map.dispose();
     mat.map = newSachetTex;
     mat.needsUpdate = true;
   });
 }
 
-// --- Procedural Fallbacks for Pop-Art Models ---
+// --- Procedural Fallbacks ---
 
 function buildCupModel() {
   const group = new THREE.Group();
@@ -472,62 +472,11 @@ function buildSachetModel() {
   return group;
 }
 
-function buildChopsticksModel() {
-  const group = new THREE.Group();
-
-  const stickLength = 2.4;
-  const geo1 = new THREE.CylinderGeometry(0.04, 0.08, stickLength, 12);
-  geo1.translate(0, stickLength * 0.5, 0);
-  const mat1 = registerToonMaterial(
-    new THREE.MeshToonMaterial({ color: PALETTE.red, transparent: true }),
-    'red'
-  );
-  const stick1 = new THREE.Mesh(geo1, mat1);
-  stick1.position.set(-0.1, -stickLength * 0.35, 0);
-  stick1.rotation.z = -0.38;
-  group.add(stick1);
-  registerOutlineMaterial(applyOutline(stick1, 0.035));
-
-  const geo2 = new THREE.CylinderGeometry(0.04, 0.08, stickLength, 12);
-  geo2.translate(0, stickLength * 0.5, 0);
-  const mat2 = registerToonMaterial(
-    new THREE.MeshToonMaterial({ color: PALETTE.orange, transparent: true }),
-    'orange'
-  );
-  const stick2 = new THREE.Mesh(geo2, mat2);
-  stick2.position.set(0.1, -stickLength * 0.35, 0);
-  stick2.rotation.z = -0.52;
-  group.add(stick2);
-  registerOutlineMaterial(applyOutline(stick2, 0.035));
-
-  return group;
-}
-
-function buildBrickModel() {
-  const group = new THREE.Group();
-
-  const w = 1.6;
-  const h = 1.35;
-  const d = 0.55;
-  const geo = new THREE.BoxGeometry(w, h, d, 12, 12, 6);
-  const mat = registerToonMaterial(
-    new THREE.MeshToonMaterial({ color: PALETTE.gold, transparent: true }),
-    'gold'
-  );
-  const mesh = new THREE.Mesh(geo, mat);
-  group.add(mesh);
-  registerOutlineMaterial(applyOutline(mesh, 0.04));
-
-  return group;
-}
-
 const PROCEDURAL_FACTORIES = {
   cup: buildCupModel,
   pack: buildPackModel,
   bowl: buildBowlModel,
-  sachet: buildSachetModel,
-  chopsticks: buildChopsticksModel,
-  brick: buildBrickModel
+  sachet: buildSachetModel
 };
 
 function ensureModelHelpers(model, defaultRawH = 1.8) {
@@ -570,69 +519,68 @@ function ensureModelHelpers(model, defaultRawH = 1.8) {
   return model;
 }
 
-// Hero products to avoid in section slots where possible
-const HERO_PRODUCT_IDS = new Set([
-  'cung-dinh-bo-ham',
-  'hao-hao-tom-chua-cay',
-  'indomie-mi-goreng',
-  '3mien-gold-tom-chua-cay',
-  'siukay-hai-san'
-]);
-
-// Section-specific product assignment for realistic models
-// Ensures no product id repeats across slots and hero products are avoided where possible
+// Section-specific product assignment for diverse realistic products
 const SECTION_SLOT_PRODUCTS = {
   about: {
-    mainId: 'omachi-bo-ham',
-    compDef: 'gau-do-lau-thai-tom'
+    left: 'omachi-bo-ham',
+    right: 'siukay-hai-san'
+  },
+  mission: {
+    left: 'hao-hao-tom-chua-cay',
+    right: 'gau-do-lau-thai-tom'
   },
   flavors: {
-    mainId: 'hao-hao-tom-chua-cay',
-    compDef: 'sachet'
+    left: 'mi-lau-thai-tom',
+    right: 'shin-super-spicy'
   },
   activities: {
-    mainId: 'siukay-hai-san',
-    compDef: 'indomie-mi-goreng'
+    left: 'siukay-hai-san',
+    right: 'cung-dinh-bo-ham'
+  },
+  zones: {
+    left: 'buldak-cheese',
+    right: 'miliket-bo'
+  },
+  gallery: {
+    left: 'cupnoodle-seafood',
+    right: 'indomie-mi-goreng'
   },
   schedule: {
-    mainId: 'shin-super-spicy',
-    compDef: 'mi-lau-thai-tom'
+    left: 'modern-lau-thai-tom',
+    right: 'mi-lau-thai-tom'
   },
   tickets: {
-    mainId: 'buldak-cheese',
-    compDef: 'kokomi-tom'
+    left: 'kokomi-tom',
+    right: 'siukay-hai-san'
   },
   faq: {
-    mainId: 'cupnoodle-seafood',
-    compDef: 'koreno-bulgogi'
+    left: '3mien-gold-tom-chua-cay',
+    right: 'koreno-bulgogi'
   }
 };
-
-function getProductDataById(id) {
-  if (window.MGF_PRODUCTS && Array.isArray(window.MGF_PRODUCTS)) {
-    return window.MGF_PRODUCTS.find((p) => p.id === id) || null;
-  }
-  return null;
-}
-
-function getProductDataByType(type, excludeId = null) {
-  if (window.MGF_PRODUCTS && Array.isArray(window.MGF_PRODUCTS)) {
-    const list = window.MGF_PRODUCTS.filter((p) => p.type === type && p.id !== excludeId);
-    if (list.length > 0) return list[0];
-  }
-  return null;
-}
 
 // --- Main Side 3D Component ---
 
 let isSide3DInitialized = false;
 
 export function initSide3D() {
-  const container = document.getElementById('side-stage');
-  if (!container) return;
-  if (container.querySelector('canvas') || isSide3DInitialized) return;
+  let container = document.getElementById('side-stage');
+  if (!container) {
+    // If side-stage doesn't exist yet, create it as the fixed background layer
+    container = document.createElement('div');
+    container.id = 'side-stage';
+    container.setAttribute('aria-hidden', 'true');
+    const mainEl = document.querySelector('main');
+    if (mainEl && mainEl.parentNode) {
+      mainEl.parentNode.insertBefore(container, mainEl);
+    } else {
+      document.body.prepend(container);
+    }
+  }
 
+  if (container.querySelector('canvas') || isSide3DInitialized) return;
   isSide3DInitialized = true;
+
   updatePaletteColors();
 
   const scene = new THREE.Scene();
@@ -646,7 +594,9 @@ export function initSide3D() {
     powerPreference: 'high-performance'
   });
   renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+
+  const initialIsMobile = window.innerWidth <= 860;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, initialIsMobile ? 1.5 : 2.0));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
@@ -661,7 +611,7 @@ export function initSide3D() {
   const envTexture = pmremGenerator.fromScene(roomEnv, 0.04).texture;
   scene.environment = envTexture;
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 1.1);
+  const ambientLight = new THREE.AmbientLight(0xffffff, 1.15);
   scene.add(ambientLight);
 
   const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
@@ -672,12 +622,9 @@ export function initSide3D() {
   rimLight.position.set(-6, -4, -4);
   scene.add(rimLight);
 
-  // Builder for slot models with strict real-product enforcement:
-  // Rule: cup, pack and bowl must ALWAYS be real products.
-  // If unique ones run out, reuse a real product (preferring non-hero) rather than a procedural model.
-  // Procedural is only for sachet.
+  // Builder for individual slot model
   function createSlotModel(typeKey, preferredId, usedIds = new Set()) {
-    if (!typeKey) return null;
+    if (!typeKey) typeKey = 'cup';
 
     const allProducts = (window.MGF_PRODUCTS && Array.isArray(window.MGF_PRODUCTS))
       ? window.MGF_PRODUCTS
@@ -690,10 +637,10 @@ export function initSide3D() {
       }
     }
 
-    // 1. If preferredId is a valid product ID that hasn't been used yet
+    // 1. Preferred ID for this section & side
     if (preferredId && preferredId !== 'cup' && preferredId !== 'pack' && preferredId !== 'bowl') {
       const preferredProd = allProducts.find((p) => p.id === preferredId);
-      if (preferredProd && !usedIds.has(preferredProd.id)) {
+      if (preferredProd) {
         usedIds.add(preferredProd.id);
         const model = createRealProductModel(preferredProd, {
           withHoloRim: true,
@@ -705,21 +652,10 @@ export function initSide3D() {
       }
     }
 
-    // 2. Otherwise find an unused product matching typeKey
-    // Prioritize products that are NOT in HERO_PRODUCT_IDS
-    let candidate = allProducts.find(
-      (p) => p.type === typeKey && !usedIds.has(p.id) && !HERO_PRODUCT_IDS.has(p.id)
-    );
+    // 2. Find an unused product matching typeKey
+    let candidate = allProducts.find((p) => p.type === typeKey && !usedIds.has(p.id));
 
-    // If none found, allow any unused product of that type
-    if (!candidate) {
-      candidate = allProducts.find((p) => p.type === typeKey && !usedIds.has(p.id));
-    }
-
-    // 3. If unique ones run out: reuse a real product (prefer one not visible in hero) rather than procedural!
-    if (!candidate) {
-      candidate = allProducts.find((p) => p.type === typeKey && !HERO_PRODUCT_IDS.has(p.id));
-    }
+    // 3. If unique ones run out: reuse any product of that type
     if (!candidate) {
       candidate = allProducts.find((p) => p.type === typeKey);
     }
@@ -735,22 +671,28 @@ export function initSide3D() {
       return ensureModelHelpers(model);
     }
 
-    // Non-noodle fallbacks
+    // Fallback to procedural model
     if (PROCEDURAL_FACTORIES[typeKey]) {
       const model = PROCEDURAL_FACTORIES[typeKey]();
       return ensureModelHelpers(model);
     }
 
+    if (PROCEDURAL_FACTORIES['cup']) {
+      return ensureModelHelpers(PROCEDURAL_FACTORIES['cup']());
+    }
+
     return null;
   }
 
-  // Find all .product-slot elements declared in HTML
-  const slotElements = Array.from(document.querySelectorAll('.product-slot[data-products]'));
   const sectionSlots = [];
 
   function buildSlots() {
+    const slotElements = Array.from(document.querySelectorAll('.product-slot[data-products]'));
+    if (slotElements.length === 0) return false;
+
+    // Remove previous groups from scene
     sectionSlots.forEach((slot) => {
-      scene.remove(slot.group);
+      if (slot.group) scene.remove(slot.group);
     });
     sectionSlots.length = 0;
     allRealModels.length = 0;
@@ -760,56 +702,75 @@ export function initSide3D() {
     slotElements.forEach((slotEl, idx) => {
       const productsAttr = slotEl.getAttribute('data-products') || '';
       const tokens = productsAttr.trim().split(/\s+/);
-      const typeA = tokens[0] || 'cup';
-      const typeB = tokens[1] || 'pack';
+      const type = tokens[0] || 'cup';
 
       const sectionEl = slotEl.closest('section');
       const secId = sectionEl ? sectionEl.id : `sec-${idx}`;
       const isLeft = slotEl.classList.contains('product-left') || Boolean(slotEl.closest('.product-left'));
 
       const mapping = SECTION_SLOT_PRODUCTS[secId];
-      const preferredIdA = mapping ? mapping.mainId : null;
-      const preferredIdB = mapping ? mapping.compDef : null;
+      let preferredId = null;
+      if (mapping) {
+        preferredId = isLeft ? mapping.left : mapping.right;
+      }
 
-      const modelA = createSlotModel(typeA, preferredIdA, usedIds);
-      const modelB = createSlotModel(typeB, preferredIdB, usedIds);
+      const model = createSlotModel(type, preferredId, usedIds);
+      if (!model) return;
 
       const group = new THREE.Group();
       group.visible = false;
+      group.add(model);
       scene.add(group);
-
-      if (modelA) group.add(modelA);
-      if (modelB) group.add(modelB);
 
       sectionSlots.push({
         slotEl,
+        sectionEl,
         secId,
         isLeft,
-        typeA,
-        typeB,
-        modelA,
-        modelB,
+        type,
+        model,
         group,
-        idx
+        idx,
+        progress: 0,
+        targetProgress: 0
       });
     });
+
+    return sectionSlots.length > 0;
   }
 
-  buildSlots();
+  // Initial build
+  const built = buildSlots();
 
-  if (!window.MGF_PRODUCTS || window.MGF_PRODUCTS.length === 0) {
+  // If DOM slots are not yet ready or products data arrives late, watch and rebuild
+  if (!built || !window.MGF_PRODUCTS || window.MGF_PRODUCTS.length === 0) {
+    let attempts = 0;
     const checkTimer = setInterval(() => {
-      if (window.MGF_PRODUCTS && window.MGF_PRODUCTS.length > 0) {
+      attempts++;
+      const success = buildSlots();
+      if ((success && window.MGF_PRODUCTS && window.MGF_PRODUCTS.length > 0) || attempts > 25) {
         clearInterval(checkTimer);
+      }
+    }, 200);
+  }
+
+  // Observe DOM modifications (opencode-1 editing HTML / adding slots)
+  let domRebuildTimeout = null;
+  const domObserver = new MutationObserver(() => {
+    clearTimeout(domRebuildTimeout);
+    domRebuildTimeout = setTimeout(() => {
+      const currentSlots = document.querySelectorAll('.product-slot[data-products]');
+      if (currentSlots.length !== sectionSlots.length) {
         buildSlots();
       }
     }, 150);
-  }
+  });
+  domObserver.observe(document.body, { childList: true, subtree: true });
 
   // Universal helper to set model opacity across all materials
   function setModelOpacity(model, opacity) {
     if (!model) return;
-    if (model.userData && model.userData.setOpacity) {
+    if (model.userData && typeof model.userData.setOpacity === 'function') {
       model.userData.setOpacity(opacity);
       return;
     }
@@ -828,49 +789,14 @@ export function initSide3D() {
     });
   }
 
-  // Box3 contain projection: returns bounding box dimensions projected to screen
-  const tempCorner = new THREE.Vector3();
-  function getProjectedGroupSpan(grp, cam, screenW, screenH) {
-    grp.updateMatrixWorld(true);
-    let minX = Infinity, maxX = -Infinity;
-    let minY = Infinity, maxY = -Infinity;
-
-    grp.traverse((child) => {
-      if (child.isMesh && !child.userData.isContactGlow && child.geometry) {
-        if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
-        const b = child.geometry.boundingBox;
-        for (let ix = 0; ix < 2; ix++) {
-          for (let iy = 0; iy < 2; iy++) {
-            for (let iz = 0; iz < 2; iz++) {
-              tempCorner.set(
-                ix === 0 ? b.min.x : b.max.x,
-                iy === 0 ? b.min.y : b.max.y,
-                iz === 0 ? b.min.z : b.max.z
-              );
-              tempCorner.applyMatrix4(child.matrixWorld);
-              tempCorner.project(cam);
-              const sx = (tempCorner.x * 0.5 + 0.5) * screenW;
-              const sy = (-(tempCorner.y * 0.5) + 0.5) * screenH;
-              if (sx < minX) minX = sx;
-              if (sx > maxX) maxX = sx;
-              if (sy < minY) minY = sy;
-              if (sy > maxY) maxY = sy;
-            }
-          }
-        }
-      }
-    });
-
-    if (minX === Infinity) return { width: 0, height: 0 };
-    return { width: maxX - minX, height: maxY - minY };
-  }
-
   // --- Resize Handler ---
   function onResize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    const isMobile = w <= 860;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2.0));
     renderer.setSize(w, h);
   }
   window.addEventListener('resize', onResize);
@@ -906,7 +832,14 @@ export function initSide3D() {
     isTabActive = !document.hidden;
   });
 
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  if (motionQuery.addEventListener) {
+    motionQuery.addEventListener('change', (e) => {
+      prefersReducedMotion = e.matches;
+    });
+  }
+
   const clock = new THREE.Clock();
 
   function update() {
@@ -916,114 +849,129 @@ export function initSide3D() {
     const time = clock.getElapsedTime();
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const viewCenter = h * 0.5;
+    const isMobile = w <= 860;
+    const isCompactMobile = w <= 600;
 
     const fovRad = (camera.fov * Math.PI) / 360;
     const vHeightWorld = 2 * Math.tan(fovRad) * camera.position.z;
     const vWidthWorld = vHeightWorld * (w / h);
 
-    const pitchAngle = 8 * Math.PI / 180;
-    const swayAngleMax = 18 * Math.PI / 180;
-    const bobMax = 0.06;
+    const basePitch = 8 * Math.PI / 180;
+    const bobAmp = isMobile ? 0.028 : 0.055;
+    const swayYawAmp = 4 * Math.PI / 180;
+    const swayPitchAmp = 2 * Math.PI / 180;
     const omega = 1.35;
 
     let anyActive = false;
 
+    // Slide distance in world units for the "trượt từ ngoài vào" effect
+    const slideDistWorld = isMobile ? (vWidthWorld * 0.09) : (vWidthWorld * 0.13);
+    const lerpFactor = prefersReducedMotion ? 1.0 : 0.12;
+    const viewCenter = h * 0.5;
+
     sectionSlots.forEach((slot) => {
-      const { slotEl, isLeft, modelA, modelB, group, idx } = slot;
-      const rect = slotEl.getBoundingClientRect();
-
-      // Check if slot is near or inside viewport
-      const centerY = rect.top + rect.height * 0.5;
-      const p = (centerY - viewCenter) / h;
-
-      if (Math.abs(p) < 0.85 && rect.width > 0 && rect.height > 0) {
-        anyActive = true;
-        group.visible = true;
-
-        const fade = Math.max(0, 1 - Math.abs(p) / 0.72);
-        const smoothFade = Math.sin(fade * Math.PI * 0.5);
-
-        if (modelA) setModelOpacity(modelA, smoothFade);
-        if (modelB) setModelOpacity(modelB, smoothFade);
-
-        // Convert slot center to world coordinates
-        const slotCenterX = rect.left + rect.width * 0.5;
-        const slotCenterY = rect.top + rect.height * 0.5;
-
-        const worldX = ((slotCenterX / w) - 0.5) * vWidthWorld;
-        const worldY = -((slotCenterY / h) - 0.5) * vHeightWorld;
-
-        const idleBob = prefersReducedMotion ? 0 : Math.sin(time * omega + idx * 0.9) * bobMax;
-        const idleSway = prefersReducedMotion ? 0 : Math.sin(time * omega + idx * 0.9) * swayAngleMax;
-
-        group.position.set(worldX, worldY + idleBob, 0);
-
-        // Convert slot box dimensions to world units
-        const slotWidthWorld = (rect.width / w) * vWidthWorld;
-        const slotHeightWorld = (rect.height / h) * vHeightWorld;
-
-        // typeA is main at ~85% of slot height and centered
-        const targetHeightA = slotHeightWorld * 0.85;
-        // typeB is a companion at ~55% of slot height
-        const targetHeightB = slotHeightWorld * 0.55;
-
-        if (modelA && modelA.userData.setTargetHeight) {
-          modelA.userData.setTargetHeight(targetHeightA);
-        }
-        if (modelB && modelB.userData.setTargetHeight) {
-          modelB.userData.setTargetHeight(targetHeightB);
-        }
-
-        // Poses: mirrored yaw (left +20°, right -20°), slight forward tilt ~8°
-        const baseYawA = isLeft ? (20 * Math.PI / 180) : (-20 * Math.PI / 180);
-        const baseYawB = isLeft ? (16 * Math.PI / 180) : (-16 * Math.PI / 180);
-
-        // Calculate model widths in local space
-        const sA = (modelA && modelA.userData.rawHeight) ? (targetHeightA / modelA.userData.rawHeight) : 1.0;
-        const currWA = (modelA && modelA.userData.rawWidth) ? (modelA.userData.rawWidth * sA) : (targetHeightA * 0.7);
-        const halfWA = currWA * 0.5;
-
-        const sB = (modelB && modelB.userData.rawHeight) ? (targetHeightB / modelB.userData.rawHeight) : 1.0;
-        const currWB = (modelB && modelB.userData.rawWidth) ? (modelB.userData.rawWidth * sB) : (targetHeightB * 0.7);
-        const halfWB = currWB * 0.5;
-
-        // Beside main with <=30% overlap (aiming for 20% overlap so companion reads clearly)
-        const overlap = 0.20 * currWB;
-        const separation = halfWA + halfWB - overlap;
-
-        const outerSign = isLeft ? -1 : 1;
-        const rawOffsetX = outerSign * separation;
-        const offsetY = -0.08 * targetHeightA; // slightly lower
-        const offsetZ = -0.30; // slightly behind
-
-        // Center the combined pair horizontally inside group
-        const pairMinX = Math.min(-halfWA, rawOffsetX - halfWB);
-        const pairMaxX = Math.max(halfWA, rawOffsetX + halfWB);
-        const pairCenterX = (pairMinX + pairMaxX) * 0.5;
-
-        if (modelA) {
-          modelA.position.set(-pairCenterX, 0, 0);
-          modelA.rotation.set(pitchAngle, baseYawA + idleSway, 0);
-        }
-
-        if (modelB) {
-          modelB.position.set(rawOffsetX - pairCenterX, offsetY, offsetZ);
-          modelB.rotation.set(pitchAngle, baseYawB + idleSway * 0.85, 0);
-        }
-
-        // Fit with contain so nothing exceeds the slot
-        const pairW = pairMaxX - pairMinX;
-        const pairH = Math.max(targetHeightA, targetHeightB - offsetY);
-        const projW = (pairW / vWidthWorld) * w;
-        const projH = (pairH / vHeightWorld) * h;
-        const maxAllowedW = Math.max(10, rect.width - 24);
-        const maxAllowedH = Math.max(10, rect.height - 24);
-        const containScale = Math.min(1.0, maxAllowedW / projW, maxAllowedH / projH);
-        group.scale.set(containScale, containScale, containScale);
-      } else {
+      const { slotEl, isLeft, model, group, idx } = slot;
+      if (!slotEl || !slotEl.isConnected) {
         group.visible = false;
+        return;
       }
+
+      const rect = slotEl.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        group.visible = false;
+        return;
+      }
+
+      // Check if slot is in or near viewport vertically
+      const centerY = rect.top + rect.height * 0.5;
+      const distFromCenter = Math.abs(centerY - viewCenter);
+      const maxVisibleDist = h * 0.65;
+
+      // Mobile reduction: compact screens (<=600px) show 1 side model per section
+      // to guarantee zero overlap with centered text
+      let allowSlot = true;
+      if (isCompactMobile) {
+        allowSlot = (idx % 2 === 0) ? isLeft : !isLeft;
+      }
+
+      if (!allowSlot || distFromCenter >= maxVisibleDist) {
+        slot.targetProgress = 0;
+      } else {
+        // Smooth fade-in zone:
+        // Within 0.25 of viewport height: targetProgress = 1.0
+        // Transition zone from 0.25 to 0.65: smooth cosine curve 1.0 -> 0.0
+        const primeZone = h * 0.25;
+        if (distFromCenter <= primeZone) {
+          slot.targetProgress = 1.0;
+        } else {
+          const t = (distFromCenter - primeZone) / (maxVisibleDist - primeZone);
+          slot.targetProgress = 0.5 + 0.5 * Math.cos(t * Math.PI);
+        }
+      }
+
+      // Lerp progress smoothly
+      slot.progress += (slot.targetProgress - slot.progress) * lerpFactor;
+      if (Math.abs(slot.targetProgress - slot.progress) < 0.001) {
+        slot.progress = slot.targetProgress;
+      }
+
+      // If completely faded out, hide and skip expensive matrix/render work
+      if (slot.progress < 0.005) {
+        group.visible = false;
+        return;
+      }
+
+      anyActive = true;
+      group.visible = true;
+
+      // 1. Opacity: fade-in / fade-out (opacity capped on mobile to keep text legible)
+      const maxOpacity = isMobile ? 0.60 : 1.0;
+      const currentOpacity = prefersReducedMotion ? maxOpacity : (slot.progress * maxOpacity);
+      setModelOpacity(model, currentOpacity);
+
+      // 2. Slide offset: "trượt từ ngoài vào"
+      // Left model slides from left (negative X), right model slides from right (positive X)
+      const slideDirection = isLeft ? -1 : 1;
+      const slideOffset = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * slideDirection * slideDistWorld);
+
+      // 3. Screen to world coordinate projection
+      const slotCenterX = rect.left + rect.width * 0.5;
+      const slotCenterY = rect.top + rect.height * 0.5;
+      const worldX = ((slotCenterX / w) - 0.5) * vWidthWorld + slideOffset;
+      const worldY = -((slotCenterY / h) - 0.5) * vHeightWorld;
+
+      // 4. Subtle idle floating / bobbing & sway (disabled if reduced-motion)
+      const idleBob = prefersReducedMotion ? 0 : Math.sin(time * omega + idx * 0.95) * bobAmp;
+      const idleSwayYaw = prefersReducedMotion ? 0 : Math.sin(time * (omega * 0.85) + idx * 0.95) * swayYawAmp;
+      const idleSwayPitch = prefersReducedMotion ? 0 : Math.cos(time * (omega * 0.75) + idx * 0.95) * swayPitchAmp;
+
+      group.position.set(worldX, worldY + idleBob, 0);
+
+      // 5. Mirrored poses (inward-facing yaw)
+      const baseYaw = isLeft ? (22 * Math.PI / 180) : (-22 * Math.PI / 180);
+      model.rotation.set(basePitch + idleSwayPitch, baseYaw + idleSwayYaw, 0);
+
+      // 6. Scale: entry scale (scale up as it slides in) + slot containment
+      const slotWidthWorld = (rect.width / w) * vWidthWorld;
+      const slotHeightWorld = (rect.height / h) * vHeightWorld;
+      const targetH = isMobile ? (slotHeightWorld * 0.80) : (slotHeightWorld * 0.86);
+
+      if (model.userData && model.userData.setTargetHeight) {
+        model.userData.setTargetHeight(targetH);
+      }
+
+      const rawH = (model.userData && model.userData.rawHeight) || 1.8;
+      const rawW = (model.userData && model.userData.rawWidth) || 1.4;
+      const currW = (rawW / rawH) * targetH;
+      const maxAllowedW = slotWidthWorld * 0.88;
+      let fitScale = 1.0;
+      if (currW > maxAllowedW) {
+        fitScale = maxAllowedW / currW;
+      }
+
+      const entryScale = prefersReducedMotion ? 1.0 : (0.75 + 0.25 * slot.progress);
+      const finalScale = fitScale * entryScale;
+      group.scale.set(finalScale, finalScale, finalScale);
     });
 
     if (anyActive) {

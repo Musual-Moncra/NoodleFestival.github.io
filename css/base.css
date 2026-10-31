@@ -134,6 +134,7 @@ main, .site-footer { position: relative; z-index: 1; }
 .site-nav ul { display: flex; gap: 24px; list-style: none; margin: 0; padding: 0; }
 .site-nav a { text-decoration: none; font-weight: 600; font-size: .95rem; }
 .site-nav a:hover { color: var(--orange); }
+.site-nav a.is-active { color: var(--orange); }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .icon-btn {
   width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border);
@@ -161,34 +162,32 @@ main, .site-footer { position: relative; z-index: 1; }
   .icon-btn { width: 36px; height: 36px; }
 }
 
-/* Hero frame (content styled here; 3D lives in #hero-canvas) */
+/* Hero frame (content styled here; 3D lives in #hero-canvas).
+   Centered stack, top→bottom: eyebrow → title → .hero-stage (3D) → sub → countdown → CTA. */
 .hero {
   position: relative; min-height: 100svh; display: grid; align-items: center;
   padding-top: var(--nav-h); overflow: hidden; isolation: isolate;
   background:
-    radial-gradient(45% 55% at 70% 55%, color-mix(in srgb, var(--orange) 30%, transparent), transparent 70%),
+    radial-gradient(45% 55% at 50% 60%, color-mix(in srgb, var(--orange) 30%, transparent), transparent 70%),
     var(--bg);
 }
 #hero-canvas { position: absolute; inset: 0; z-index: -1; }
-/* Two columns: copy left, 3D stage right. hero3d.js reads .hero-stage's box. */
 .hero-content {
-  position: relative; pointer-events: none; display: grid; align-items: center;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(16px, 3vw, 48px);
-  min-height: calc(100svh - var(--nav-h)); padding-block: 32px;
+  position: relative; pointer-events: none; display: flex; flex-direction: column;
+  align-items: center; text-align: center; gap: clamp(10px, 1.6vw, 20px);
+  min-height: calc(100svh - var(--nav-h)); padding-block: 28px 40px;
 }
 .hero-content a, .hero-content button { pointer-events: auto; }
-.hero-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 20px; }
-.hero-stage { height: min(78svh, 720px); }
-.hero-title { font-size: clamp(2.6rem, 5.4vw, 4.75rem); line-height: .95; margin: 0; text-shadow: var(--glow); }
+/* hero3d.js reads .hero-stage's box and fits the model inside. */
+.hero-stage { height: clamp(280px, 46svh, 560px); width: min(100%, 900px); }
+.hero-eyebrow { margin-bottom: 0; }
+.hero-title { font-size: clamp(2.2rem, 6.5vw, 5.5rem); line-height: .95; margin: 0; text-shadow: var(--glow); max-width: 14ch; }
 .hero-sub { color: var(--text-muted); font-size: clamp(1rem, 1.6vw, 1.25rem); margin: 0; }
-.hero-cta { display: flex; gap: 12px; flex-wrap: wrap; }
-.hero-copy .countdown { justify-content: flex-start; flex-wrap: nowrap; gap: 12px; margin: 4px 0; }
-.hero-copy .countdown > div { min-width: 0; flex: 0 1 96px; padding-inline: 10px; }
+.hero-cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.hero-content .countdown { margin: 8px 0 0; }
 @media (max-width: 860px) {
-  .hero-content { grid-template-columns: 1fr; gap: 8px; text-align: center; padding-block: 16px 32px; }
-  .hero-copy { align-items: center; }
-  .hero-cta, .hero-copy .countdown { justify-content: center; }
-  .hero-stage { order: -1; height: min(44svh, 380px); }
+  .hero-content { gap: 8px; padding-block: 16px 32px; }
+  .hero-stage { height: clamp(220px, 36svh, 380px); }
 }
 
 /* Footer */
