@@ -27,7 +27,7 @@ Landing page demo cho lễ hội trải nghiệm mì gói · 16.12.2026 · ĐH H
 
 | | |
 |---|---|
-| **Hero căn giữa** | Tên “MÌ GÓI FESTIVAL” trên cùng, ngay dưới là ly mì 3D lớn ở giữa (nắp foil bóc hé, hơi nước), rồi tới đếm ngược và nút đăng ký. |
+| **Hero căn giữa** | Tên “MÌ GÓI FESTIVAL” trên cùng, ngay dưới là ly mì 3D lớn ở giữa (nắp foil bóc dở lộ sợi mì + topping, hơi nước), rồi tới đếm ngược và nút đăng ký. |
 | **Model 3D sản phẩm thật** | Ly/gói/tô mì dựng từ ảnh bao bì thật: nhãn quấn 360° theo tỉ lệ thật, viền mép cuộn, vật liệu giấy phủ lớp bóng nhẹ. |
 | **Model hai bên theo section** | Mỗi section có 2 khung model ở hai lề (`.product-slot`), mờ dần hiện ra khi vào màn hình và biến mất khi rời. |
 | **Nội dung từ tài liệu khách** | Concept, theme, tầm nhìn–sứ mệnh–mục tiêu (#mission), 4 nhóm hoạt động, khu vực sự kiện (#zones), lịch trình, FAQ — chỗ chưa chốt ghi “Sắp công bố”, không bịa giá. |
