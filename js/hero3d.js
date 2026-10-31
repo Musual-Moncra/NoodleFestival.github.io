@@ -321,8 +321,8 @@ export function initHero3D() {
 
   // Background companion slots: tucked softly behind the hero cup at negative Z and lower opacity
   const COMPANION_SLOTS = [
-    { id: 'bg-left', type: 'cup', relX: -0.78, relY: -0.06, z: -1.35, scale: 0.44, rotY: 0.38, rotZ: 0.08, opacity: 0.46, phase: 0.8 },
-    { id: 'bg-right', type: 'pack', relX: 0.78, relY: -0.08, z: -1.35, scale: 0.42, rotY: -0.38, rotZ: -0.08, opacity: 0.46, phase: 2.9 }
+    { id: 'bg-left', type: 'cup', relX: -0.78, relY: -0.08, z: -1.5, scale: 0.32, rotY: 0.38, rotZ: 0.08, opacity: 0.44, phase: 0.8 },
+    { id: 'bg-right', type: 'pack', relX: 0.78, relY: -0.10, z: -1.5, scale: 0.30, rotY: -0.38, rotZ: -0.08, opacity: 0.44, phase: 2.9 }
   ];
 
   function buildHeroCupModel(prod) {
@@ -545,10 +545,8 @@ export function initHero3D() {
 
     const isMobile = isMobileViewport();
 
-    // Size the main hero cup to fill ~78% of .hero-stage height while fitting cleanly within stage width
-    const desiredCupH = stageHeightWorld * (isMobile ? 0.78 : 0.80);
-    const maxCupByWidth = stageWidthWorld * (isMobile ? 0.72 : 0.58);
-    currentCenterH = Math.min(desiredCupH, maxCupByWidth * 1.25);
+    // Base world height reference for the main hero cup
+    currentCenterH = stageHeightWorld * 0.88;
 
     worldGroup.position.set(targetWorldX, targetWorldY, 0);
     worldGroup.scale.set(1, 1, 1);
@@ -569,7 +567,7 @@ export function initHero3D() {
       if (mesh.userData && mesh.userData.setTargetHeight) {
         mesh.userData.setTargetHeight(compH);
       }
-      const spreadFactor = isMobile ? 0.78 : 1.0;
+      const spreadFactor = isMobile ? 0.72 : 0.92;
       const xOffset = Math.min(stageWidthWorld * 0.36, slot.relX * currentCenterH * spreadFactor);
       const clampedX = slot.relX < 0 ? -Math.abs(xOffset) : Math.abs(xOffset);
       mesh.position.set(clampedX, slot.relY * currentCenterH, slot.z);
@@ -578,7 +576,7 @@ export function initHero3D() {
       }
     });
 
-    // Project centerContainer bounding box to ensure hero cup stays strictly inside .hero-stage rect
+    // Project centerContainer bounding box so the hero cup fills ~88% of .hero-stage height across all viewports
     worldGroup.updateMatrixWorld(true);
 
     let minX = Infinity;
@@ -589,11 +587,14 @@ export function initHero3D() {
 
     if (currentCenterModel) {
       currentCenterModel.traverse((child) => {
+        if (child !== currentCenterModel && child.userData && child.userData.isSteam) return;
         if (
           child.isMesh &&
           !child.userData.isContactGlow &&
           !child.userData.isSteam &&
+          !(child.parent && child.parent.userData && child.parent.userData.isSteam) &&
           child.userData.phase === undefined &&
+          child.userData.speed === undefined &&
           child.geometry
         ) {
           if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
@@ -624,12 +625,11 @@ export function initHero3D() {
     if (minX !== Infinity && maxX > minX && maxY > minY) {
       const cupScreenW = maxX - minX;
       const cupScreenH = maxY - minY;
-      const padX = isMobile ? 12 : 16;
-      const padY = isMobile ? 10 : 14;
-      const maxAllowedW = Math.max(20, stageRect.width - padX * 2);
-      const maxAllowedH = Math.max(20, stageRect.height - padY * 2);
+      // Target 88% of .hero-stage height (within 85–90% spec), constrained only by 92% stage width
+      const targetScreenH = stageRect.height * 0.88;
+      const maxAllowedW = Math.max(40, stageRect.width * 0.92);
 
-      const containScale = Math.min(1.0, maxAllowedW / cupScreenW, maxAllowedH / cupScreenH);
+      const containScale = Math.min(targetScreenH / cupScreenH, maxAllowedW / cupScreenW);
       worldGroup.scale.setScalar(containScale);
       worldGroup.updateMatrixWorld(true);
 

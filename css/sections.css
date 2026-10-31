@@ -184,6 +184,14 @@
   .product-slot.product-left { left: 0; }
   .product-slot.product-right { right: 0; }
   .product-slot::after { height: 18px; }
+
+  /* Reserve headroom so the corner models never overlap the section title */
+  .section {
+    padding-top: calc(var(--space-section) + clamp(24px, 8vw, 40px));
+  }
+  #about {
+    padding-top: clamp(64px, 8vw, 120px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -210,6 +218,12 @@
 /* -------------------------------------------------------------------------- */
 /* About: section head + stats band                                           */
 /* -------------------------------------------------------------------------- */
+/* #about is the first section after the hero band — the default 220px section
+   padding reads as dead space there, so pull the head up a bit. */
+#about {
+  padding-top: clamp(64px, 8vw, 120px);
+}
+
 .stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

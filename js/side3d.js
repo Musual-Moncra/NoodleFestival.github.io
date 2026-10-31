@@ -566,7 +566,6 @@ let isSide3DInitialized = false;
 export function initSide3D() {
   let container = document.getElementById('side-stage');
   if (!container) {
-    // If side-stage doesn't exist yet, create it as the fixed background layer
     container = document.createElement('div');
     container.id = 'side-stage';
     container.setAttribute('aria-hidden', 'true');
@@ -754,7 +753,7 @@ export function initSide3D() {
     }, 200);
   }
 
-  // Observe DOM modifications (opencode-1 editing HTML / adding slots)
+  // Observe DOM modifications
   let domRebuildTimeout = null;
   const domObserver = new MutationObserver(() => {
     clearTimeout(domRebuildTimeout);
@@ -850,72 +849,53 @@ export function initSide3D() {
     const w = window.innerWidth;
     const h = window.innerHeight;
     const isMobile = w <= 860;
-    const isCompactMobile = w <= 600;
 
     const fovRad = (camera.fov * Math.PI) / 360;
     const vHeightWorld = 2 * Math.tan(fovRad) * camera.position.z;
     const vWidthWorld = vHeightWorld * (w / h);
 
     const basePitch = 8 * Math.PI / 180;
-    const bobAmp = isMobile ? 0.028 : 0.055;
-    const swayYawAmp = 4 * Math.PI / 180;
-    const swayPitchAmp = 2 * Math.PI / 180;
+    const bobAmp = isMobile ? 0.020 : 0.045;
+    const swayYawAmp = isMobile ? (2.5 * Math.PI / 180) : (4.0 * Math.PI / 180);
+    const swayPitchAmp = isMobile ? (1.2 * Math.PI / 180) : (2.0 * Math.PI / 180);
     const omega = 1.35;
 
     let anyActive = false;
-
-    // Slide distance in world units for the "trượt từ ngoài vào" effect
-    const slideDistWorld = isMobile ? (vWidthWorld * 0.09) : (vWidthWorld * 0.13);
     const lerpFactor = prefersReducedMotion ? 1.0 : 0.12;
-    const viewCenter = h * 0.5;
 
     sectionSlots.forEach((slot) => {
-      const { slotEl, isLeft, model, group, idx } = slot;
+      const { slotEl, sectionEl, isLeft, model, group, idx } = slot;
       if (!slotEl || !slotEl.isConnected) {
         group.visible = false;
         return;
       }
 
       const rect = slotEl.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) {
-        group.visible = false;
-        return;
-      }
+      const secRect = sectionEl ? sectionEl.getBoundingClientRect() : rect;
 
-      // Check if slot is in or near viewport vertically
-      const centerY = rect.top + rect.height * 0.5;
-      const distFromCenter = Math.abs(centerY - viewCenter);
-      const maxVisibleDist = h * 0.65;
+      // Section visibility calculation based on viewport intersection
+      const visibleTop = Math.max(0, secRect.top);
+      const visibleBottom = Math.min(h, secRect.bottom);
+      const visibleH = Math.max(0, visibleBottom - visibleTop);
+      const viewFraction = visibleH / Math.min(h, Math.max(100, secRect.height));
 
-      // Mobile reduction: compact screens (<=600px) show 1 side model per section
-      // to guarantee zero overlap with centered text
-      let allowSlot = true;
-      if (isCompactMobile) {
-        allowSlot = (idx % 2 === 0) ? isLeft : !isLeft;
-      }
-
-      if (!allowSlot || distFromCenter >= maxVisibleDist) {
-        slot.targetProgress = 0;
+      // Fade in as section enters (0 -> 0.30 fraction), stay 1.0 in prime view, fade out on leave
+      if (viewFraction > 0.30) {
+        slot.targetProgress = 1.0;
+      } else if (viewFraction > 0.04) {
+        const t = (viewFraction - 0.04) / 0.26;
+        slot.targetProgress = 0.5 - 0.5 * Math.cos(t * Math.PI);
       } else {
-        // Smooth fade-in zone:
-        // Within 0.25 of viewport height: targetProgress = 1.0
-        // Transition zone from 0.25 to 0.65: smooth cosine curve 1.0 -> 0.0
-        const primeZone = h * 0.25;
-        if (distFromCenter <= primeZone) {
-          slot.targetProgress = 1.0;
-        } else {
-          const t = (distFromCenter - primeZone) / (maxVisibleDist - primeZone);
-          slot.targetProgress = 0.5 + 0.5 * Math.cos(t * Math.PI);
-        }
+        slot.targetProgress = 0.0;
       }
 
-      // Lerp progress smoothly
+      // Smooth scroll lerp
       slot.progress += (slot.targetProgress - slot.progress) * lerpFactor;
       if (Math.abs(slot.targetProgress - slot.progress) < 0.001) {
         slot.progress = slot.targetProgress;
       }
 
-      // If completely faded out, hide and skip expensive matrix/render work
+      // Hide offscreen models to conserve GPU/render budget
       if (slot.progress < 0.005) {
         group.visible = false;
         return;
@@ -924,20 +904,84 @@ export function initSide3D() {
       anyActive = true;
       group.visible = true;
 
-      // 1. Opacity: fade-in / fade-out (opacity capped on mobile to keep text legible)
-      const maxOpacity = isMobile ? 0.60 : 1.0;
+      // Model aspect ratio
+      const rawH = (model.userData && model.userData.rawHeight) || 1.8;
+      const rawW = (model.userData && model.userData.rawWidth) || 1.4;
+      const modelAspect = rawW / rawH;
+
+      let targetHPx = 0;
+      let slotCenterX = 0;
+      let slotCenterY = 0;
+      let maxOpacity = 1.0;
+
+      if (!isMobile) {
+        // --- (1) DESKTOP (>860px) ---
+        // Size: ~220–260px at 1440 (scaled proportionally across desktop resolutions)
+        targetHPx = Math.max(210, Math.min(255, w * 0.165));
+        const halfWPx = targetHPx * modelAspect * 0.5;
+
+        // Position: slot center vertically, guaranteed >= 18px from viewport edge
+        slotCenterY = rect.top + rect.height * 0.5;
+
+        if (isLeft) {
+          const rawCenterX = rect.left + rect.width * 0.5;
+          const minLeftCenterX = 18 + halfWPx;
+          slotCenterX = Math.max(rawCenterX, minLeftCenterX);
+
+          // Slide in from left: at progress=0 shifts outward, at progress=1 offset=0
+          const slideDistPx = 32;
+          const slideOffsetPx = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * -slideDistPx);
+          slotCenterX += slideOffsetPx;
+        } else {
+          const rawCenterX = rect.left + rect.width * 0.5;
+          const maxRightCenterX = w - 18 - halfWPx;
+          slotCenterX = Math.min(rawCenterX, maxRightCenterX);
+
+          // Slide in from right: at progress=0 shifts outward, at progress=1 offset=0
+          const slideDistPx = 32;
+          const slideOffsetPx = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * slideDistPx);
+          slotCenterX += slideOffsetPx;
+        }
+
+        maxOpacity = 1.0;
+      } else {
+        // --- (2) MOBILE (<=860px) ---
+        // Size: ~70–90px (compact so it never covers section title or content)
+        targetHPx = Math.max(72, Math.min(88, 70 + (w / 860) * 18));
+        const halfWPx = targetHPx * modelAspect * 0.5;
+
+        // Position: placed in the top-left and top-right corners of the section,
+        // strictly outside the centered text area
+        slotCenterY = secRect.top + targetHPx * 0.5 + 14;
+
+        if (isLeft) {
+          slotCenterX = 10 + halfWPx;
+          const slideDistPx = 16;
+          const slideOffsetPx = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * -slideDistPx);
+          slotCenterX += slideOffsetPx;
+        } else {
+          slotCenterX = w - 10 - halfWPx;
+          const slideDistPx = 16;
+          const slideOffsetPx = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * slideDistPx);
+          slotCenterX += slideOffsetPx;
+        }
+
+        // Opacity: ~0.55 as requested
+        maxOpacity = 0.55;
+      }
+
+      // 1. Opacity application
       const currentOpacity = prefersReducedMotion ? maxOpacity : (slot.progress * maxOpacity);
       setModelOpacity(model, currentOpacity);
 
-      // 2. Slide offset: "trượt từ ngoài vào"
-      // Left model slides from left (negative X), right model slides from right (positive X)
-      const slideDirection = isLeft ? -1 : 1;
-      const slideOffset = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * slideDirection * slideDistWorld);
+      // 2. Target Height scaling in 3D world space
+      const targetHWorld = (targetHPx / h) * vHeightWorld;
+      if (model.userData && model.userData.setTargetHeight) {
+        model.userData.setTargetHeight(targetHWorld);
+      }
 
-      // 3. Screen to world coordinate projection
-      const slotCenterX = rect.left + rect.width * 0.5;
-      const slotCenterY = rect.top + rect.height * 0.5;
-      const worldX = ((slotCenterX / w) - 0.5) * vWidthWorld + slideOffset;
+      // 3. Screen coordinates to 3D world space coordinates
+      const worldX = ((slotCenterX / w) - 0.5) * vWidthWorld;
       const worldY = -((slotCenterY / h) - 0.5) * vHeightWorld;
 
       // 4. Subtle idle floating / bobbing & sway (disabled if reduced-motion)
@@ -948,30 +992,12 @@ export function initSide3D() {
       group.position.set(worldX, worldY + idleBob, 0);
 
       // 5. Mirrored poses (inward-facing yaw)
-      const baseYaw = isLeft ? (22 * Math.PI / 180) : (-22 * Math.PI / 180);
+      const baseYaw = isLeft ? (20 * Math.PI / 180) : (-20 * Math.PI / 180);
       model.rotation.set(basePitch + idleSwayPitch, baseYaw + idleSwayYaw, 0);
 
-      // 6. Scale: entry scale (scale up as it slides in) + slot containment
-      const slotWidthWorld = (rect.width / w) * vWidthWorld;
-      const slotHeightWorld = (rect.height / h) * vHeightWorld;
-      const targetH = isMobile ? (slotHeightWorld * 0.80) : (slotHeightWorld * 0.86);
-
-      if (model.userData && model.userData.setTargetHeight) {
-        model.userData.setTargetHeight(targetH);
-      }
-
-      const rawH = (model.userData && model.userData.rawHeight) || 1.8;
-      const rawW = (model.userData && model.userData.rawWidth) || 1.4;
-      const currW = (rawW / rawH) * targetH;
-      const maxAllowedW = slotWidthWorld * 0.88;
-      let fitScale = 1.0;
-      if (currW > maxAllowedW) {
-        fitScale = maxAllowedW / currW;
-      }
-
-      const entryScale = prefersReducedMotion ? 1.0 : (0.75 + 0.25 * slot.progress);
-      const finalScale = fitScale * entryScale;
-      group.scale.set(finalScale, finalScale, finalScale);
+      // 6. Scale: entry scale (smoothly scales from 80% to 100% on fade-in)
+      const entryScale = prefersReducedMotion ? 1.0 : (0.80 + 0.20 * slot.progress);
+      group.scale.set(entryScale, entryScale, entryScale);
     });
 
     if (anyActive) {
