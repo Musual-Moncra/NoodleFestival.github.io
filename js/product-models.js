@@ -281,106 +281,145 @@ export function createCupOrBowlGeometry(bodyData, type = 'cup', prod = null, opt
  */
 export function createLidGeometry(radius = 1.0, opts = {}) {
   const segments = (opts && opts.lowPoly) ? 24 : 40;
-  const geo = new THREE.CircleGeometry(radius * 1.015, segments);
+  const uvScale = 0.82;
+  const geo = new THREE.CircleGeometry(radius, segments);
   const pos = geo.attributes.position;
+  const uv = geo.attributes.uv;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
     const dist = Math.hypot(x, y) / radius;
     const bulge = Math.max(0, 1 - dist * dist) * 0.025;
     pos.setZ(i, bulge);
+    uv.setXY(i, 0.5 + (x / radius) * 0.5 * uvScale, 0.5 + (y / radius) * 0.5 * uvScale);
   }
+  uv.needsUpdate = true;
   geo.computeVertexNormals();
   return geo;
 }
 
 /**
- * Creates an authentic FLAT peeled-back foil lid geometry (tấm phẳng bóc gập lên ~1 bên, KHÔNG phải vòm):
- * - Base segment: Flat sealed back half (y = 0, z <= hingeZ).
- * - Peeled flap: Flat rigid plate rotated up around straight hinge line z = hingeZ by peelAngle (~48°).
- * - Normal vectors point cleanly up and back (no dome or conical distortion).
- * - Exact UV mapping for official -lid.webp texture.
+ * Creates authentic 2-mesh FLAT peeled-back foil lid assembly:
+ * 1. Top Mesh (base sealed half + flap top):
+ *    - In texture -lid.webp, mapped with uvScale=0.82 to fit inside the opaque graphic circle.
+ *    - Opacity 1.0, metalness 0.5, roughness 0.35, depthWrite true.
+ * 2. Underside Mesh (facing forward/down towards the camera):
+ *    - Shiny bright silver aluminum foil: MeshStandardMaterial (color #d9d9d9, metalness 0.7, roughness 0.3).
+ *    - Flat rigid flap tilted up ~47° along straight hinge line (KHÔNG phải vòm).
+ *    - NO holo rim on the lid.
  */
-export function createFlatPeeledLidGeometry(radius = 1.0, opts = {}) {
+export function createPeeledLidAssembly(radius = 1.0, opts = {}) {
   const isLowPoly = Boolean(opts && opts.lowPoly);
-  const segments = isLowPoly ? 24 : 40;
-  const peelAngle = (opts && opts.peelAngle) || 0.84; // ~48° rigid bend
-  const hingeFraction = -0.05;
+  const segments = isLowPoly ? 24 : 36;
+  const peelAngle = (opts && opts.peelAngle) || 0.82; // ~47° flat tilt
+  const hingeFraction = -0.06;
+  const uvScale = 0.82; // keeps UVs strictly within solid graphic area
 
   const hingeZ = radius * hingeFraction;
   const chordW = Math.sqrt(Math.max(0, radius * radius - hingeZ * hingeZ));
-
   const angleStart = Math.atan2(hingeZ, -chordW);
   const angleEnd = Math.atan2(hingeZ, chordW);
 
-  const positions = [];
-  const uvs = [];
-  const indices = [];
+  const cosA = Math.cos(peelAngle);
+  const sinA = Math.sin(peelAngle);
 
-  // 1. Base segment: Flat fan from hinge center (0, 0, hingeZ) around the sealed back half (z <= hingeZ)
+  // 1. TOP MESH (Sealed flat back half + lifted flat front flap, printed top side)
+  const topPos = [];
+  const topUv = [];
+  const topIdx = [];
+
+  // Base segment (z <= hingeZ)
   const baseCenterIdx = 0;
-  positions.push(0, 0, hingeZ);
-  uvs.push(0.5, (hingeZ / radius + 1) * 0.5);
+  topPos.push(0, 0, hingeZ);
+  topUv.push(0.5, 0.5 + (hingeZ / radius) * 0.5 * uvScale);
 
   const baseSteps = Math.round(segments * 0.55);
   for (let i = 0; i <= baseSteps; i++) {
     const t = i / baseSteps;
-    // sweep clockwise from angleStart through -PI/2 to angleEnd - 2*PI
     const a = angleStart - t * (angleStart - (angleEnd - Math.PI * 2));
     const x = Math.cos(a) * radius;
     const z = Math.sin(a) * radius;
-    positions.push(x, 0, z);
-    uvs.push((x / radius + 1) * 0.5, (z / radius + 1) * 0.5);
+    topPos.push(x, 0, z);
+    topUv.push(0.5 + (x / radius) * 0.5 * uvScale, 0.5 + (z / radius) * 0.5 * uvScale);
   }
-
   for (let i = 1; i <= baseSteps; i++) {
-    indices.push(baseCenterIdx, i, i + 1);
+    topIdx.push(baseCenterIdx, i, i + 1);
   }
 
-  // 2. Peeled flap segment: Flat rigid fan rotated up around hinge line z = hingeZ by peelAngle
-  const flapCenterIdx = positions.length / 3;
-  positions.push(0, 0, hingeZ); // hinge center
-  uvs.push(0.5, (hingeZ / radius + 1) * 0.5);
+  // Flap top segment (z >= hingeZ)
+  const flapCenterIdx = topPos.length / 3;
+  topPos.push(0, 0, hingeZ);
+  topUv.push(0.5, 0.5 + (hingeZ / radius) * 0.5 * uvScale);
 
   const flapSteps = Math.round(segments * 0.45);
-  const cosA = Math.cos(peelAngle);
-  const sinA = Math.sin(peelAngle);
-
   for (let i = 0; i <= flapSteps; i++) {
     const t = i / flapSteps;
-    // sweep counter-clockwise from angleEnd through +PI/2 to angleStart + 2*PI
     const a = angleEnd + t * (angleStart + Math.PI * 2 - angleEnd);
     const origX = Math.cos(a) * radius;
     const origZ = Math.sin(a) * radius;
-
     const dist = origZ - hingeZ;
     const posX = origX;
     const posY = dist * sinA;
     const posZ = hingeZ + dist * cosA;
-
-    positions.push(posX, posY, posZ);
-    uvs.push((origX / radius + 1) * 0.5, (origZ / radius + 1) * 0.5);
+    topPos.push(posX, posY, posZ);
+    topUv.push(0.5 + (origX / radius) * 0.5 * uvScale, 0.5 + (origZ / radius) * 0.5 * uvScale);
   }
-
   for (let i = 1; i <= flapSteps; i++) {
-    indices.push(flapCenterIdx, flapCenterIdx + i + 1, flapCenterIdx + i);
+    topIdx.push(flapCenterIdx, flapCenterIdx + i + 1, flapCenterIdx + i);
   }
 
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();
+  const topGeo = new THREE.BufferGeometry();
+  topGeo.setAttribute('position', new THREE.Float32BufferAttribute(topPos, 3));
+  topGeo.setAttribute('uv', new THREE.Float32BufferAttribute(topUv, 2));
+  topGeo.setIndex(topIdx);
+  topGeo.computeVertexNormals();
 
-  return geo;
+  // 2. UNDERSIDE MESH (Bright silver aluminum foil flap facing the camera)
+  const underPos = [];
+  const underUv = [];
+  const underIdx = [];
+
+  // Hairline offset of 0.002 along underside normal (0, -cosA, sinA) to prevent z-fighting
+  const offY = -cosA * 0.002;
+  const offZ = sinA * 0.002;
+
+  underPos.push(0, offY, hingeZ + offZ);
+  underUv.push(0.5, 0.5);
+
+  for (let i = 0; i <= flapSteps; i++) {
+    const t = i / flapSteps;
+    const a = angleEnd + t * (angleStart + Math.PI * 2 - angleEnd);
+    const origX = Math.cos(a) * radius;
+    const origZ = Math.sin(a) * radius;
+    const dist = origZ - hingeZ;
+    const posX = origX;
+    const posY = dist * sinA + offY;
+    const posZ = hingeZ + dist * cosA + offZ;
+    underPos.push(posX, posY, posZ);
+    underUv.push(t, 1);
+  }
+  for (let i = 1; i <= flapSteps; i++) {
+    underIdx.push(0, i, i + 1);
+  }
+
+  const underGeo = new THREE.BufferGeometry();
+  underGeo.setAttribute('position', new THREE.Float32BufferAttribute(underPos, 3));
+  underGeo.setAttribute('uv', new THREE.Float32BufferAttribute(underUv, 2));
+  underGeo.setIndex(underIdx);
+  underGeo.computeVertexNormals();
+
+  return { topGeo, underGeo };
 }
 
-/**
- * Backward compatibility alias for createFlatPeeledLidGeometry
- */
+// Backward compatibility alias
+export function createFlatPeeledLidGeometry(radius = 1.0, opts = {}) {
+  const { topGeo } = createPeeledLidAssembly(radius, opts);
+  return topGeo;
+}
+
 export function createPeeledLidGeometries(radius = 1.0, opts = {}) {
-  const geo = createFlatPeeledLidGeometry(radius, opts);
-  return { topGeo: geo, foilGeo: geo };
+  const { topGeo, underGeo } = createPeeledLidAssembly(radius, opts);
+  return { topGeo, foilGeo: underGeo };
 }
 
 /**
@@ -922,29 +961,19 @@ export function createPackGeometry(aspect = 1.32, opts = {}) {
 
 /**
  * Inverted Hull Outline Material generator for thin & subtle palette rim (fresnel-like accent).
- * For cups/bowls: tapers outline thickness down to 0 at the top rim so it NEVER covers the lid or mouth.
+ * Strictly used for packs, never applied over open cup/bowl mouths or lids.
  */
-export function createHoloRimOutline(mesh, rimColor, thickness = 0.012, isCup = false, halfH = 0) {
+export function createHoloRimOutline(mesh, rimColor, thickness = 0.012) {
   const geo = mesh.geometry.clone();
   const pos = geo.attributes.position;
   const normal = geo.attributes.normal;
   if (normal) {
     for (let i = 0; i < pos.count; i++) {
-      const y = pos.getY(i);
-      let t = thickness;
-      if (isCup && halfH > 0) {
-        // Taper outline to 0 near top rim so it never extends above the rim lip or over the lid
-        const rimZone = halfH - 0.06;
-        if (y > rimZone) {
-          const fade = Math.max(0, 1 - (y - rimZone) / 0.06);
-          t *= fade;
-        }
-      }
       pos.setXYZ(
         i,
-        pos.getX(i) + normal.getX(i) * t,
-        Math.min(y + normal.getY(i) * t, (isCup && halfH > 0) ? (halfH - 0.005) : Infinity),
-        pos.getZ(i) + normal.getZ(i) * t
+        pos.getX(i) + normal.getX(i) * thickness,
+        pos.getY(i) + normal.getY(i) * thickness,
+        pos.getZ(i) + normal.getZ(i) * thickness
       );
     }
     pos.needsUpdate = true;
@@ -965,9 +994,9 @@ export function createHoloRimOutline(mesh, rimColor, thickness = 0.012, isCup = 
 }
 
 /**
- * Builds a realistic 3D noodle product model from real data with optional thin palette hologram rim.
+ * Builds a realistic 3D noodle product model from real data.
  * Supported options:
- * - withHoloRim: boolean (default true)
+ * - withHoloRim: boolean (default true for pack; disabled on cups/bowls to keep lids and mouths clean)
  * - withContactGlow: boolean (default true)
  * - rimColor: THREE.Color
  * - peeledLid / open / openLid / peelLid: boolean (default true for cups/bowls when lid exists)
@@ -980,7 +1009,9 @@ export function createRealProductModel(prod, opts = {}) {
 
   const type = prod.type || 'pack';
   const isCupOrBowl = type === 'cup' || type === 'bowl';
-  const withRim = opts.withHoloRim !== false;
+  const isBowl = type === 'bowl';
+  // Keep holo rim strictly for packs; cups and bowls have realistic rolled paper/plastic rims without neon wireframes
+  const withRim = !isCupOrBowl && (opts.withHoloRim !== false);
   const rimColor = opts.rimColor || new THREE.Color(0xffb300);
   const isLowPoly = Boolean(opts && opts.lowPoly);
 
@@ -1046,12 +1077,6 @@ export function createRealProductModel(prod, opts = {}) {
     const bodyMesh = new THREE.Mesh(geo, mainMat);
     root.add(bodyMesh);
 
-    if (withRim) {
-      // Pass isCup=true and halfH so the hologram outline NEVER projects over the lid
-      const { mat } = createHoloRimOutline(bodyMesh, rimColor, 0.012, true, halfH);
-      rimMaterials.push(mat);
-    }
-
     // Solid paper bottom cap so cups seen from below show authentic base
     const bottomGeo = new THREE.CircleGeometry(rBottom * 0.98, isLowPoly ? 20 : 36);
     const bottomMat = new THREE.MeshPhysicalMaterial({
@@ -1073,30 +1098,53 @@ export function createRealProductModel(prod, opts = {}) {
     // Lid and internal noodle assembly
     if (prod.lid) {
       const lidTex = loadTexture(prod.lid);
+      // For bowls, size lid snugly inside rim (0.94) to prevent any black alpha boundary; for cups, 0.985
+      const lidRadius = isBowl ? (rTop * 0.94) : (rTop * 0.985);
 
       if (withPeeledLid) {
-        // 1. Authentic flat foil lid peeled up on one side (tấm phẳng bóc gập lên ~1 bên, KHÔNG phải vòm)
-        // Opaque foil material: opacity 1, metalness ~0.6, roughness ~0.35, map: lidTex, DoubleSide
-        const flatLidGeo = createFlatPeeledLidGeometry(rTop * 1.012, { lowPoly: isLowPoly });
+        // 1. Two-mesh flat foil lid (tấm phẳng bóc gập lên ~1 bên, KHÔNG phải vòm):
+        // Mesh A: Top printed artwork (-lid.webp)
+        // Mesh B: Underside shiny bright silver aluminum foil (MeshStandard color #d9d9d9, metalness 0.7, roughness 0.3)
+        const { topGeo, underGeo } = createPeeledLidAssembly(lidRadius, { lowPoly: isLowPoly });
 
-        const lidMat = new THREE.MeshStandardMaterial({
+        // Printed top material
+        const lidTopMat = new THREE.MeshStandardMaterial({
           roughness: 0.35,
-          metalness: 0.6,
+          metalness: 0.5,
           color: 0xffffff,
           map: lidTex,
           transparent: false,
           opacity: 1.0,
           depthWrite: true,
-          side: THREE.DoubleSide,
-          envMapIntensity: 0.7
+          side: THREE.FrontSide,
+          envMapIntensity: 0.65
         });
-        lidMat.userData = { isSolid: true, baseOpacity: 1.0 };
-        allMeshMats.push(lidMat);
+        lidTopMat.userData = { isSolid: true, baseOpacity: 1.0 };
+        allMeshMats.push(lidTopMat);
 
-        const peeledLidMesh = new THREE.Mesh(flatLidGeo, lidMat);
-        peeledLidMesh.rotation.x = -Math.PI / 2;
-        peeledLidMesh.position.y = halfH + 0.006;
-        root.add(peeledLidMesh);
+        const peeledLidTopMesh = new THREE.Mesh(topGeo, lidTopMat);
+        peeledLidTopMesh.rotation.x = -Math.PI / 2;
+        peeledLidTopMesh.position.y = halfH + 0.005;
+        root.add(peeledLidTopMesh);
+
+        // Underside metallic silver foil material (faces the camera when tilted up!)
+        const foilUnderMat = new THREE.MeshStandardMaterial({
+          color: 0xd9d9d9,
+          roughness: 0.3,
+          metalness: 0.7,
+          transparent: false,
+          opacity: 1.0,
+          depthWrite: true,
+          side: THREE.FrontSide,
+          envMapIntensity: 0.85
+        });
+        foilUnderMat.userData = { isSolid: true, baseOpacity: 1.0 };
+        allMeshMats.push(foilUnderMat);
+
+        const peeledLidUnderMesh = new THREE.Mesh(underGeo, foilUnderMat);
+        peeledLidUnderMesh.rotation.x = -Math.PI / 2;
+        peeledLidUnderMesh.position.y = halfH + 0.005;
+        root.add(peeledLidUnderMesh);
 
         // 2. Realistic Noodle Assembly inside the cup:
         // lining, broth, curly noodles, shrimp, scallion, egg — clearly visible through the opening!
@@ -1105,17 +1153,17 @@ export function createRealProductModel(prod, opts = {}) {
         root.userData.noodleAssembly = noodleGroup;
         noodleMats.forEach((m) => allMeshMats.push(m));
       } else {
-        // Flat/convex closed lid: completely opaque, metalness ~0.6, roughness ~0.35
-        const lidGeo = createLidGeometry(rTop, { lowPoly: isLowPoly });
+        // Flat/convex closed lid: completely opaque, metalness ~0.5, roughness ~0.35
+        const lidGeo = createLidGeometry(lidRadius, { lowPoly: isLowPoly });
         const lidMat = new THREE.MeshStandardMaterial({
           roughness: 0.35,
-          metalness: 0.6,
+          metalness: 0.5,
           color: 0xffffff,
           map: lidTex,
           transparent: false,
           opacity: 1.0,
           depthWrite: true,
-          side: THREE.DoubleSide,
+          side: THREE.FrontSide,
           envMapIntensity: 0.6
         });
         lidMat.userData = { isSolid: true, baseOpacity: 1.0 };

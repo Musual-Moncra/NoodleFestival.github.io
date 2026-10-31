@@ -962,12 +962,13 @@
 }
 
 /* -------------------------------------------------------------------------- */
-/* Header Navigation adjustments (8 links, prevent crowding 861px–1600px)   */
+/* Header Navigation adjustments (8 links, tighten 861px–1280px)              */
 /* -------------------------------------------------------------------------- */
-@media (min-width: 861px) and (max-width: 1600px) {
+@media (min-width: 861px) and (max-width: 1280px) {
   .site-nav a { white-space: nowrap; }
   .site-header .container {
     gap: 12px;
+    max-width: none;
   }
   .site-nav ul {
     gap: clamp(10px, 1.6vw, 18px);

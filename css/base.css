@@ -132,9 +132,12 @@ main, .site-footer { position: relative; z-index: 1; }
 .site-header .container { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .logo { font-family: var(--font-display); font-size: 1.25rem; text-decoration: none; }
 .site-nav ul { display: flex; gap: 24px; list-style: none; margin: 0; padding: 0; }
-.site-nav a { text-decoration: none; font-weight: 600; font-size: .95rem; }
+.site-nav a { text-decoration: none; font-weight: 600; font-size: .95rem; white-space: nowrap; }
 .site-nav a:hover { color: var(--orange); }
 .site-nav a.is-active { color: var(--orange); }
+.site-nav ul { flex-wrap: nowrap; }
+/* Wider header container: 8 nav links + actions don't fit the 1120px content width */
+.site-header .container { max-width: 1440px; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .icon-btn {
   width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border);

@@ -479,24 +479,51 @@ const PROCEDURAL_FACTORIES = {
   sachet: buildSachetModel
 };
 
-function ensureModelHelpers(model, defaultRawH = 1.8) {
+/**
+ * Fits and normalizes any model according to its true measured 3D bounding box (Box3).
+ * Ensures all types (cup, bowl, pack, sachet) are scaled consistently and fit ~240px.
+ */
+function ensureModelHelpers(model) {
   if (!model) return model;
 
-  if (!model.userData.rawHeight || !model.userData.rawWidth) {
-    const box = new THREE.Box3().setFromObject(model);
-    const rawH = Math.max(0.1, box.max.y - box.min.y) || defaultRawH;
-    const rawW = Math.max(0.1, box.max.x - box.min.x) || (rawH * 0.8);
-    model.userData.rawHeight = model.userData.rawHeight || rawH;
-    model.userData.rawWidth = model.userData.rawWidth || rawW;
+  model.updateMatrixWorld(true);
+
+  // Measure true bounding box of visual meshes (excluding contact glow)
+  const box = new THREE.Box3();
+  model.traverse((child) => {
+    if (child.isMesh && !child.userData.isContactGlow && child.geometry) {
+      if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
+      const b = child.geometry.boundingBox.clone().applyMatrix4(child.matrixWorld);
+      box.union(b);
+    }
+  });
+
+  if (box.isEmpty()) {
+    box.setFromObject(model);
   }
 
-  if (!model.userData.setTargetHeight) {
-    model.userData.setTargetHeight = (targetH) => {
-      const s = targetH / (model.userData.rawHeight || defaultRawH);
-      model.scale.set(s, s, s);
-      return s;
-    };
-  }
+  const realW = Math.max(0.1, box.max.x - box.min.x);
+  const realH = Math.max(0.1, box.max.y - box.min.y);
+  const realD = Math.max(0.1, box.max.z - box.min.z);
+
+  model.userData.realWidth = realW;
+  model.userData.realHeight = realH;
+  model.userData.realDepth = realD;
+  model.userData.rawHeight = realH;
+  model.userData.rawWidth = realW;
+  model.userData.maxLocalDim = Math.max(realW, realH);
+
+  // Scaler that sets the maximum dimension of the real model to targetSize
+  model.userData.setTargetSize = (targetSize) => {
+    const maxDim = model.userData.maxLocalDim || 1.8;
+    const s = targetSize / maxDim;
+    model.scale.set(s, s, s);
+    return s;
+  };
+
+  model.userData.setTargetHeight = (targetH) => {
+    return model.userData.setTargetSize(targetH);
+  };
 
   if (!model.userData.setOpacity) {
     model.userData.setOpacity = (alpha) => {
@@ -904,69 +931,85 @@ export function initSide3D() {
       anyActive = true;
       group.visible = true;
 
-      // Model aspect ratio
-      const rawH = (model.userData && model.userData.rawHeight) || 1.8;
-      const rawW = (model.userData && model.userData.rawWidth) || 1.4;
-      const modelAspect = rawW / rawH;
+      // Visual sizing based on measured real 3D bounding box
+      const maxLocalDim = (model.userData && model.userData.maxLocalDim) || 1.8;
+      const realW = (model.userData && model.userData.realWidth) || 1.4;
 
-      let targetHPx = 0;
+      let targetSizePx = 0;
       let slotCenterX = 0;
       let slotCenterY = 0;
       let maxOpacity = 1.0;
 
       if (!isMobile) {
         // --- (1) DESKTOP (>860px) ---
-        // Size: ~220–260px at 1440 (scaled proportionally across desktop resolutions)
-        targetHPx = Math.max(210, Math.min(255, w * 0.165));
-        const halfWPx = targetHPx * modelAspect * 0.5;
+        // Sized consistently ~235–245px across all types (cup, bowl, pack, sachet)
+        targetSizePx = Math.max(220, Math.min(245, w * 0.165));
 
-        // Position: slot center vertically, guaranteed >= 18px from viewport edge
+        // Screen width of this model at the target scale
+        const scale = targetSizePx / maxLocalDim;
+        const modelWPx = realW * scale;
+        const halfWPx = modelWPx * 0.5;
+
+        // Position: slot center vertically
         slotCenterY = rect.top + rect.height * 0.5;
+
+        const slideDistPx = 24;
 
         if (isLeft) {
           const rawCenterX = rect.left + rect.width * 0.5;
-          const minLeftCenterX = 18 + halfWPx;
-          slotCenterX = Math.max(rawCenterX, minLeftCenterX);
+          const restingCenterX = Math.max(rawCenterX, 30 + halfWPx);
+          const slideOffset = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * -slideDistPx);
+          slotCenterX = restingCenterX + slideOffset;
 
-          // Slide in from left: at progress=0 shifts outward, at progress=1 offset=0
-          const slideDistPx = 32;
-          const slideOffsetPx = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * -slideDistPx);
-          slotCenterX += slideOffsetPx;
+          // GUARANTEE: distance to left edge >= 24px at ALL times (including slide-in)
+          if (slotCenterX - halfWPx < 24) {
+            slotCenterX = 24 + halfWPx;
+          }
         } else {
           const rawCenterX = rect.left + rect.width * 0.5;
-          const maxRightCenterX = w - 18 - halfWPx;
-          slotCenterX = Math.min(rawCenterX, maxRightCenterX);
+          const restingCenterX = Math.min(rawCenterX, w - 30 - halfWPx);
+          const slideOffset = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * slideDistPx);
+          slotCenterX = restingCenterX + slideOffset;
 
-          // Slide in from right: at progress=0 shifts outward, at progress=1 offset=0
-          const slideDistPx = 32;
-          const slideOffsetPx = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * slideDistPx);
-          slotCenterX += slideOffsetPx;
+          // GUARANTEE: distance to right edge >= 24px at ALL times (including slide-in)
+          if (slotCenterX + halfWPx > w - 24) {
+            slotCenterX = w - 24 - halfWPx;
+          }
         }
 
         maxOpacity = 1.0;
       } else {
         // --- (2) MOBILE (<=860px) ---
-        // Size: ~70–90px (compact so it never covers section title or content)
-        targetHPx = Math.max(72, Math.min(88, 70 + (w / 860) * 18));
-        const halfWPx = targetHPx * modelAspect * 0.5;
+        // Size: ~70–90px, placed in top corners strictly outside text
+        targetSizePx = Math.max(72, Math.min(88, 70 + (w / 860) * 18));
+        const scale = targetSizePx / maxLocalDim;
+        const modelWPx = realW * scale;
+        const halfWPx = modelWPx * 0.5;
 
-        // Position: placed in the top-left and top-right corners of the section,
-        // strictly outside the centered text area
-        slotCenterY = secRect.top + targetHPx * 0.5 + 14;
+        slotCenterY = secRect.top + targetSizePx * 0.5 + 14;
+
+        const slideDistPx = 14;
 
         if (isLeft) {
-          slotCenterX = 10 + halfWPx;
-          const slideDistPx = 16;
-          const slideOffsetPx = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * -slideDistPx);
-          slotCenterX += slideOffsetPx;
+          const restingCenterX = 12 + halfWPx;
+          const slideOffset = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * -slideDistPx);
+          slotCenterX = restingCenterX + slideOffset;
+
+          // Keep within safe mobile margin >= 8px
+          if (slotCenterX - halfWPx < 8) {
+            slotCenterX = 8 + halfWPx;
+          }
         } else {
-          slotCenterX = w - 10 - halfWPx;
-          const slideDistPx = 16;
-          const slideOffsetPx = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * slideDistPx);
-          slotCenterX += slideOffsetPx;
+          const restingCenterX = w - 12 - halfWPx;
+          const slideOffset = prefersReducedMotion ? 0 : ((1.0 - slot.progress) * slideDistPx);
+          slotCenterX = restingCenterX + slideOffset;
+
+          // Keep within safe mobile margin >= 8px
+          if (slotCenterX + halfWPx > w - 8) {
+            slotCenterX = w - 8 - halfWPx;
+          }
         }
 
-        // Opacity: ~0.55 as requested
         maxOpacity = 0.55;
       }
 
@@ -974,10 +1017,10 @@ export function initSide3D() {
       const currentOpacity = prefersReducedMotion ? maxOpacity : (slot.progress * maxOpacity);
       setModelOpacity(model, currentOpacity);
 
-      // 2. Target Height scaling in 3D world space
-      const targetHWorld = (targetHPx / h) * vHeightWorld;
-      if (model.userData && model.userData.setTargetHeight) {
-        model.userData.setTargetHeight(targetHWorld);
+      // 2. Target size scaling in 3D world space (fitted to real bounding box)
+      const targetSizeWorld = (targetSizePx / h) * vHeightWorld;
+      if (model.userData && model.userData.setTargetSize) {
+        model.userData.setTargetSize(targetSizeWorld);
       }
 
       // 3. Screen coordinates to 3D world space coordinates
@@ -995,7 +1038,7 @@ export function initSide3D() {
       const baseYaw = isLeft ? (20 * Math.PI / 180) : (-20 * Math.PI / 180);
       model.rotation.set(basePitch + idleSwayPitch, baseYaw + idleSwayYaw, 0);
 
-      // 6. Scale: entry scale (smoothly scales from 80% to 100% on fade-in)
+      // 6. Entry scale (smoothly scales from 80% to 100% on fade-in)
       const entryScale = prefersReducedMotion ? 1.0 : (0.80 + 0.20 * slot.progress);
       group.scale.set(entryScale, entryScale, entryScale);
     });
