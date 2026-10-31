@@ -2,7 +2,9 @@
   "name": "mgf-build",
   "private": true,
   "scripts": {
-    "build": "NODE_PATH=./node_modules esbuild ../js/main.js --bundle --minify --format=iife --target=es2020 --outfile=../js/app.bundle.js"
+    "build": "NODE_PATH=./node_modules esbuild ../js/main.js --bundle --minify --format=iife --target=es2020 --outfile=../js/app.bundle.js",
+    "products": "python3 prepare_products.py && python3 embed_textures.py",
+    "textures": "python3 embed_textures.py"
   },
   "devDependencies": {
     "esbuild": "0.24.0",

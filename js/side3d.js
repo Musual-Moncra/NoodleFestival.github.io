@@ -1,93 +1,94 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { getCssColor } from './hero3d.js';
+import { createRealProductModel, setRendererCapabilities } from './product-models.js';
 
 // --- Palette and Ramp Management ---
 
+const PALETTE = {
+  red: new THREE.Color('#E10600'),
+  orange: new THREE.Color('#FF5A00'),
+  amber: new THREE.Color('#FF8C00'),
+  gold: new THREE.Color('#FFC800'),
+  outline: new THREE.Color('#1A1412')
+};
+
+// 3-step discrete toon ramp
 function createToonRampTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 4;
   canvas.height = 1;
   const ctx = canvas.getContext('2d');
   const imgData = ctx.createImageData(4, 1);
-  const shades = [60, 150, 220, 255];
-  for (let i = 0; i < 4; i++) {
-    imgData.data[i * 4 + 0] = shades[i];
-    imgData.data[i * 4 + 1] = shades[i];
-    imgData.data[i * 4 + 2] = shades[i];
-    imgData.data[i * 4 + 3] = 255;
-  }
+  const data = imgData.data;
+
+  // Step 0: Shadow
+  data[0] = 70; data[1] = 70; data[2] = 70; data[3] = 255;
+  // Step 1: Midtone
+  data[4] = 160; data[5] = 160; data[6] = 160; data[7] = 255;
+  // Step 2: Bright mid
+  data[8] = 215; data[9] = 215; data[10] = 215; data[11] = 255;
+  // Step 3: Highlight
+  data[12] = 255; data[13] = 255; data[14] = 255; data[15] = 255;
+
   ctx.putImageData(imgData, 0, 0);
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.NearestFilter;
-  texture.magFilter = THREE.NearestFilter;
-  texture.generateMipmaps = false;
-  return texture;
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  return tex;
 }
 
 const TOON_RAMP = createToonRampTexture();
 
-const PALETTE = {
-  red: new THREE.Color(),
-  orange: new THREE.Color(),
-  amber: new THREE.Color(),
-  gold: new THREE.Color(),
-  outline: new THREE.Color(),
-  bg: new THREE.Color(),
-  hexRed: '#E10600',
-  hexOrange: '#FF5A00',
-  hexAmber: '#FFB300',
-  hexGold: '#FFC800'
-};
-
 function updatePaletteColors() {
-  PALETTE.red.copy(getCssColor('--red', '#E10600'));
-  PALETTE.orange.copy(getCssColor('--orange', '#FF5A00'));
-  PALETTE.amber.copy(getCssColor('--amber', '#FFB300'));
-  PALETTE.gold.copy(getCssColor('--gold', '#FFC800'));
+  const cRed = getCssColor('--holo-c', '#E10600');
+  const cOrange = getCssColor('--holo-b', '#FF5A00');
+  const cGold = getCssColor('--holo-a', '#FFC800');
 
-  PALETTE.hexRed = '#' + PALETTE.red.getHexString();
-  PALETTE.hexOrange = '#' + PALETTE.orange.getHexString();
-  PALETTE.hexAmber = '#' + PALETTE.amber.getHexString();
-  PALETTE.hexGold = '#' + PALETTE.gold.getHexString();
+  PALETTE.red.copy(cRed);
+  PALETTE.orange.copy(cOrange);
+  PALETTE.amber.lerpColors(cOrange, cGold, 0.45);
+  PALETTE.gold.copy(cGold);
 
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-  if (isLight) {
-    PALETTE.outline.set('#200800');
-    PALETTE.bg.set('#FFF8F0');
+  const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+  if (theme === 'light') {
+    PALETTE.outline.set('#2D201A');
   } else {
-    PALETTE.outline.set('#0E0402');
-    PALETTE.bg.set('#070302');
+    PALETTE.outline.set('#0A0807');
   }
 }
 
-// Inverted Hull Outline Material generator
+// Inverted Hull Outline Material generator for procedural models
 function createOutlineMaterial() {
   return new THREE.MeshBasicMaterial({
     color: PALETTE.outline,
     side: THREE.BackSide,
     transparent: true,
     opacity: 1.0,
-    depthWrite: false
+    depthWrite: true
   });
 }
 
 function applyOutline(mesh, thickness = 0.04) {
+  const outlineMat = createOutlineMaterial();
   const outlineGeo = mesh.geometry.clone();
+
   const pos = outlineGeo.attributes.position;
-  const normal = outlineGeo.attributes.normal;
-  if (normal) {
+  const norm = outlineGeo.attributes.normal;
+  if (norm) {
     for (let i = 0; i < pos.count; i++) {
       pos.setXYZ(
         i,
-        pos.getX(i) + normal.getX(i) * thickness,
-        pos.getY(i) + normal.getY(i) * thickness,
-        pos.getZ(i) + normal.getZ(i) * thickness
+        pos.getX(i) + norm.getX(i) * thickness,
+        pos.getY(i) + norm.getY(i) * thickness,
+        pos.getZ(i) + norm.getZ(i) * thickness
       );
     }
     pos.needsUpdate = true;
   }
-  const outlineMat = createOutlineMaterial();
+
   const outlineMesh = new THREE.Mesh(outlineGeo, outlineMat);
   mesh.add(outlineMesh);
   return outlineMat;
@@ -95,6 +96,7 @@ function applyOutline(mesh, thickness = 0.04) {
 
 const allToonMaterials = [];
 const allOutlineMaterials = [];
+const allRealModels = [];
 
 function registerToonMaterial(mat, role = 'orange') {
   mat.gradientMap = TOON_RAMP;
@@ -107,7 +109,7 @@ function registerOutlineMaterial(mat) {
   return mat;
 }
 
-// --- Dynamic Palette Canvas Textures (Point 3) ---
+// --- Dynamic Palette Canvas Textures for Procedural Models ---
 
 function createCupLabelTexture() {
   const canvas = document.createElement('canvas');
@@ -115,68 +117,75 @@ function createCupLabelTexture() {
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
 
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-  ctx.fillStyle = isLight ? '#FFF8F0' : '#1A0802';
+  ctx.fillStyle = PALETTE.gold.getStyle();
   ctx.fillRect(0, 0, 512, 256);
 
-  ctx.fillStyle = PALETTE.hexOrange;
-  ctx.fillRect(0, 20, 512, 30);
-  ctx.fillRect(0, 206, 512, 30);
+  ctx.fillStyle = PALETTE.orange.getStyle();
+  ctx.beginPath();
+  ctx.ellipse(256, 128, 180, 85, 0, 0, Math.PI * 2);
+  ctx.fill();
 
-  ctx.fillStyle = PALETTE.hexRed;
-  ctx.fillRect(0, 60, 512, 136);
+  ctx.fillStyle = PALETTE.red.getStyle();
+  ctx.beginPath();
+  ctx.ellipse(256, 128, 150, 65, 0, 0, Math.PI * 2);
+  ctx.fill();
 
-  ctx.fillStyle = PALETTE.hexGold;
-  ctx.font = '900 64px "Bungee", sans-serif, system-ui';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '900 48px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('MÌ GÓI', 256, 128);
+  ctx.fillText('MÌ GÓI', 256, 112);
 
-  ctx.fillStyle = '#FFF8F0';
-  ctx.font = '700 24px sans-serif';
-  ctx.fillText('★ 2026 FEST ★', 256, 172);
+  ctx.fillStyle = PALETTE.gold.getStyle();
+  ctx.font = 'bold 24px sans-serif';
+  ctx.fillText('FESTIVAL', 256, 154);
 
   const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.repeat.set(1.5, 1);
+  tex.anisotropy = 4;
+  tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
 function createPackLabelTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
-  canvas.height = 512;
+  canvas.height = 384;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = PALETTE.hexOrange;
-  ctx.fillRect(0, 0, 512, 512);
+  ctx.fillStyle = PALETTE.orange.getStyle();
+  ctx.fillRect(0, 0, 512, 384);
 
-  ctx.fillStyle = '#FFF3E6';
+  ctx.strokeStyle = PALETTE.red.getStyle();
+  ctx.lineWidth = 14;
+  for (let x = -384; x < 512 * 2; x += 36) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + 384, 384);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = PALETTE.gold.getStyle();
   ctx.beginPath();
-  ctx.arc(256, 256, 190, 0, Math.PI * 2);
+  ctx.roundRect(40, 60, 432, 264, 28);
   ctx.fill();
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 6;
+  ctx.stroke();
 
-  ctx.fillStyle = PALETTE.hexRed;
-  ctx.beginPath();
-  ctx.arc(256, 256, 165, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = PALETTE.hexGold;
-  ctx.beginPath();
-  ctx.arc(256, 290, 80, 0, Math.PI);
-  ctx.fill();
-  ctx.fillRect(206, 280, 100, 10);
-
-  ctx.fillStyle = '#FFF8F0';
-  ctx.font = '900 62px "Bungee", sans-serif, system-ui';
+  ctx.fillStyle = PALETTE.red.getStyle();
+  ctx.font = '900 52px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('MÌ GÓI', 256, 180);
+  ctx.fillText('HẢO HẢO', 256, 150);
 
-  ctx.font = '700 28px sans-serif';
-  ctx.fillText('FESTIVAL', 256, 225);
+  ctx.fillStyle = '#1A1412';
+  ctx.font = 'bold 24px sans-serif';
+  ctx.fillText('TÔM CHUA CAY', 256, 210);
 
-  return new THREE.CanvasTexture(canvas);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.anisotropy = 4;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 function createSachetLabelTexture() {
@@ -185,28 +194,33 @@ function createSachetLabelTexture() {
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = PALETTE.hexRed;
+  ctx.fillStyle = PALETTE.red.getStyle();
   ctx.fillRect(0, 0, 256, 256);
 
-  ctx.fillStyle = PALETTE.hexGold;
-  ctx.fillRect(16, 16, 224, 224);
+  ctx.fillStyle = PALETTE.gold.getStyle();
+  ctx.beginPath();
+  ctx.moveTo(128, 40);
+  ctx.lineTo(216, 128);
+  ctx.lineTo(128, 216);
+  ctx.lineTo(40, 128);
+  ctx.closePath();
+  ctx.fill();
 
-  ctx.fillStyle = PALETTE.hexRed;
-  ctx.fillRect(28, 28, 200, 200);
-
-  ctx.fillStyle = '#FFF8F0';
-  ctx.font = '900 40px "Bungee", sans-serif, system-ui';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = '#1A1412';
+  ctx.lineWidth = 4;
+  ctx.font = '900 38px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('GIA VỊ', 128, 110);
+  ctx.strokeText('SA TẾ', 128, 128);
+  ctx.fillText('SA TẾ', 128, 128);
 
-  ctx.font = '700 20px sans-serif';
-  ctx.fillText('ĐẶC BIỆT', 128, 160);
-
-  return new THREE.CanvasTexture(canvas);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.anisotropy = 4;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
-// Track textured materials to update them on themechange
 const texturedMaterials = {
   cup: [],
   pack: [],
@@ -215,132 +229,101 @@ const texturedMaterials = {
 
 function refreshTexturedMaterials() {
   const newCupTex = createCupLabelTexture();
+  texturedMaterials.cup.forEach((mat) => {
+    mat.map.dispose();
+    mat.map = newCupTex;
+    mat.needsUpdate = true;
+  });
+
   const newPackTex = createPackLabelTexture();
+  texturedMaterials.pack.forEach((mat) => {
+    mat.map.dispose();
+    mat.map = newPackTex;
+    mat.needsUpdate = true;
+  });
+
   const newSachetTex = createSachetLabelTexture();
-
-  texturedMaterials.cup.forEach((m) => {
-    if (m.map) m.map.dispose();
-    m.map = newCupTex;
-    m.needsUpdate = true;
-  });
-
-  texturedMaterials.pack.forEach((m) => {
-    if (m.map) m.map.dispose();
-    m.map = newPackTex;
-    m.needsUpdate = true;
-  });
-
-  texturedMaterials.sachet.forEach((m) => {
-    if (m.map) m.map.dispose();
-    m.map = newSachetTex;
-    m.needsUpdate = true;
+  texturedMaterials.sachet.forEach((mat) => {
+    mat.map.dispose();
+    mat.map = newSachetTex;
+    mat.needsUpdate = true;
   });
 }
 
-// --- Procedural Pop-Art Model Builders ---
+// --- Procedural Fallbacks for Pop-Art Models ---
 
-/**
- * 1. CUP
- */
 function buildCupModel() {
   const group = new THREE.Group();
 
-  const bodyGeo = new THREE.CylinderGeometry(0.85, 0.6, 1.7, 32, 1, false);
-  const cupLabelTex = createCupLabelTexture();
+  const bodyPoints = [];
+  bodyPoints.push(new THREE.Vector2(0.55, -1.0));
+  bodyPoints.push(new THREE.Vector2(0.85, 0.95));
+  bodyPoints.push(new THREE.Vector2(0.92, 1.0));
+  bodyPoints.push(new THREE.Vector2(0.88, 1.05));
+  bodyPoints.push(new THREE.Vector2(0.82, 1.0));
+
+  const bodyGeo = new THREE.LatheGeometry(bodyPoints, 32);
+  const cupTex = createCupLabelTexture();
   const bodyMat = registerToonMaterial(
     new THREE.MeshToonMaterial({
-      map: cupLabelTex,
+      map: cupTex,
       color: 0xffffff,
       transparent: true
     }),
-    'white'
+    'gold'
   );
   texturedMaterials.cup.push(bodyMat);
 
   const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
   group.add(bodyMesh);
-  registerOutlineMaterial(applyOutline(bodyMesh, 0.04));
+  registerOutlineMaterial(applyOutline(bodyMesh, 0.045));
 
-  const rimGeo = new THREE.TorusGeometry(0.87, 0.05, 16, 32);
-  rimGeo.rotateX(Math.PI / 2);
-  rimGeo.translate(0, 0.85, 0);
-  const rimMat = registerToonMaterial(
-    new THREE.MeshToonMaterial({ color: PALETTE.gold, transparent: true }),
-    'gold'
-  );
-  group.add(new THREE.Mesh(rimGeo, rimMat));
-
-  const noodleMouthGeo = new THREE.CylinderGeometry(0.81, 0.81, 0.12, 24);
-  noodleMouthGeo.translate(0, 0.78, 0);
-  const noodleMat = registerToonMaterial(
-    new THREE.MeshToonMaterial({ color: PALETTE.amber, transparent: true }),
-    'amber'
-  );
-  group.add(new THREE.Mesh(noodleMouthGeo, noodleMat));
-
-  const lidGeo = new THREE.PlaneGeometry(1.3, 1.1, 16, 16);
-  const lPos = lidGeo.attributes.position;
-  for (let i = 0; i < lPos.count; i++) {
-    const y = lPos.getY(i);
-    const curl = Math.pow(Math.max(0, y + 0.55) / 1.1, 2) * 0.75;
-    lPos.setZ(i, lPos.getZ(i) + curl);
-  }
-  lidGeo.computeVertexNormals();
-  lidGeo.rotateX(-Math.PI / 2);
-  lidGeo.rotateY(0.4);
-  lidGeo.translate(0.1, 0.9, 0);
-
+  const lidGeo = new THREE.CylinderGeometry(0.94, 0.90, 0.12, 32);
   const lidMat = registerToonMaterial(
-    new THREE.MeshToonMaterial({
-      color: PALETTE.red,
-      side: THREE.DoubleSide,
-      transparent: true
-    }),
+    new THREE.MeshToonMaterial({ color: PALETTE.orange, transparent: true }),
+    'orange'
+  );
+  const lidMesh = new THREE.Mesh(lidGeo, lidMat);
+  lidMesh.position.y = 1.04;
+  group.add(lidMesh);
+  registerOutlineMaterial(applyOutline(lidMesh, 0.04));
+
+  const tabShape = new THREE.Shape();
+  tabShape.moveTo(-0.15, 0);
+  tabShape.lineTo(0.15, 0);
+  tabShape.lineTo(0.12, 0.28);
+  tabShape.lineTo(-0.12, 0.28);
+  tabShape.closePath();
+
+  const tabGeo = new THREE.ShapeGeometry(tabShape);
+  const tabMat = registerToonMaterial(
+    new THREE.MeshToonMaterial({ color: PALETTE.red, transparent: true, side: THREE.DoubleSide }),
     'red'
   );
-  group.add(new THREE.Mesh(lidGeo, lidMat));
-
-  const smokeGroup = new THREE.Group();
-  for (let s = 0; s < 3; s++) {
-    const curvePoints = [];
-    const offsetX = (s - 1) * 0.3;
-    for (let p = 0; p <= 10; p++) {
-      const py = 0.95 + p * 0.18;
-      const px = offsetX + Math.sin(p * 0.8 + s * 2.0) * 0.12;
-      const pz = Math.cos(p * 0.8 + s * 2.0) * 0.12;
-      curvePoints.push(new THREE.Vector3(px, py, pz));
-    }
-    const smokeCurve = new THREE.CatmullRomCurve3(curvePoints);
-    const smokeGeo = new THREE.TubeGeometry(smokeCurve, 20, 0.04 - s * 0.007, 8, false);
-    const smokeMat = registerToonMaterial(
-      new THREE.MeshToonMaterial({
-        color: PALETTE.gold,
-        transparent: true,
-        opacity: 0.85
-      }),
-      'gold'
-    );
-    smokeGroup.add(new THREE.Mesh(smokeGeo, smokeMat));
-  }
-  group.add(smokeGroup);
+  const tabMesh = new THREE.Mesh(tabGeo, tabMat);
+  tabMesh.rotation.x = -Math.PI / 2 + 0.25;
+  tabMesh.position.set(0, 1.11, 0.88);
+  group.add(tabMesh);
 
   return group;
 }
 
-/**
- * 2. PACK (Point 1 fix: corrected front UV mapping so label is never mirrored)
- */
 function buildPackModel() {
   const group = new THREE.Group();
 
-  const w = 1.45, h = 1.9, d = 0.48;
-  const geo = new THREE.BoxGeometry(w, h, d, 24, 30, 8);
+  const w = 1.9;
+  const h = 1.45;
+  const d = 0.52;
+  const halfW = w * 0.5;
+  const halfH = h * 0.5;
+  const halfD = d * 0.5;
+
+  const geo = new THREE.BoxGeometry(w, h, d, 16, 16, 8);
   const pos = geo.attributes.position;
   const uv = geo.attributes.uv;
-  const halfW = w * 0.5, halfH = h * 0.5, halfD = d * 0.5;
 
   for (let i = 0; i < pos.count; i++) {
-    let x = pos.getX(i);
+    const x = pos.getX(i);
     let y = pos.getY(i);
     let z = pos.getZ(i);
 
@@ -349,207 +332,23 @@ function buildPackModel() {
     const pillow = Math.max(0, 1 - normX * normX) * Math.max(0, 1 - normY * normY);
 
     if (Math.abs(z) > 0.001) {
-      z = Math.sign(z) * (halfD * (0.25 + 0.75 * pillow));
+      z = Math.sign(z) * (halfD * (0.28 + 0.72 * pillow));
     }
 
-    const crimpDist = 0.15 * h;
+    const crimpDist = 0.16 * h;
     const topDist = halfH - y;
     const btmDist = y - (-halfH);
 
     if (topDist < crimpDist || btmDist < crimpDist) {
       const crimpFactor = 1 - Math.min(topDist, btmDist) / crimpDist;
-      z *= (1 - crimpFactor * 0.85);
-      const zigzag = Math.sin(normX * 36.0) * (0.02 * h * crimpFactor);
+      z *= (1 - crimpFactor * 0.82);
+      const zigzag = Math.sin(normX * 32.0) * (0.016 * h * crimpFactor);
       y += (y > 0 ? zigzag : -zigzag);
     }
     pos.setXYZ(i, x, y, z);
   }
   geo.computeVertexNormals();
 
-  // Ensure front face UV (face index 4 in BoxGeometry) maps correctly from left to right (Point 1)
-  // In Three.js BoxGeometry: groups are +X (0..5), -X, +Y, -Y, +Z (front face), -Z (back face)
-  // For front face (+Z), vertices have z > 0
-  for (let i = 0; i < pos.count; i++) {
-    if (pos.getZ(i) > halfD * 0.1) {
-      const u = (pos.getX(i) + halfW) / w; // 0 (left) to 1 (right)
-      const v = (pos.getY(i) + halfH) / h; // 0 (bottom) to 1 (top)
-      uv.setXY(i, u, v);
-    }
-  }
-  uv.needsUpdate = true;
-
-  const packTex = createPackLabelTexture();
-  const packMat = registerToonMaterial(
-    new THREE.MeshToonMaterial({
-      map: packTex,
-      color: 0xffffff,
-      transparent: true
-    }),
-    'white'
-  );
-  texturedMaterials.pack.push(packMat);
-
-  const packMesh = new THREE.Mesh(geo, packMat);
-  group.add(packMesh);
-  registerOutlineMaterial(applyOutline(packMesh, 0.04));
-
-  return group;
-}
-
-/**
- * 3. BOWL
- */
-function buildBowlModel() {
-  const group = new THREE.Group();
-
-  const bowlGeo = new THREE.CylinderGeometry(1.1, 0.55, 0.75, 32, 8, false);
-  const bPos = bowlGeo.attributes.position;
-  for (let i = 0; i < bPos.count; i++) {
-    const y = bPos.getY(i);
-    const ny = (y + 0.375) / 0.75;
-    const angle = Math.atan2(bPos.getZ(i), bPos.getX(i));
-    const r = Math.hypot(bPos.getX(i), bPos.getZ(i)) + Math.sin(ny * Math.PI) * 0.1;
-    bPos.setXYZ(i, Math.cos(angle) * r, y, Math.sin(angle) * r);
-  }
-  bowlGeo.computeVertexNormals();
-
-  const bowlMat = registerToonMaterial(
-    new THREE.MeshToonMaterial({ color: PALETTE.red, transparent: true }),
-    'red'
-  );
-  const bowlMesh = new THREE.Mesh(bowlGeo, bowlMat);
-  group.add(bowlMesh);
-  registerOutlineMaterial(applyOutline(bowlMesh, 0.04));
-
-  const rimGeo = new THREE.TorusGeometry(1.12, 0.05, 12, 32);
-  rimGeo.rotateX(Math.PI / 2);
-  rimGeo.translate(0, 0.375, 0);
-  const rimMat = registerToonMaterial(
-    new THREE.MeshToonMaterial({ color: PALETTE.gold, transparent: true }),
-    'gold'
-  );
-  group.add(new THREE.Mesh(rimGeo, rimMat));
-
-  const noodleGroup = new THREE.Group();
-  for (let c = 0; c < 5; c++) {
-    const points = [];
-    const rad = 0.25 + c * 0.14;
-    for (let a = 0; a <= 12; a++) {
-      const theta = (a / 12) * Math.PI * 2 * 1.5;
-      const px = Math.cos(theta) * rad + Math.sin(a * 2.0) * 0.07;
-      const pz = Math.sin(theta) * rad + Math.cos(a * 2.0) * 0.07;
-      const py = 0.26 + Math.sin(a * 3.0) * 0.05;
-      points.push(new THREE.Vector3(px, py, pz));
-    }
-    const nCurve = new THREE.CatmullRomCurve3(points);
-    const nGeo = new THREE.TubeGeometry(nCurve, 32, 0.035, 6, false);
-    const nMat = registerToonMaterial(
-      new THREE.MeshToonMaterial({ color: PALETTE.amber, transparent: true }),
-      'amber'
-    );
-    noodleGroup.add(new THREE.Mesh(nGeo, nMat));
-  }
-  group.add(noodleGroup);
-
-  for (let e = 0; e < 2; e++) {
-    const eggGroup = new THREE.Group();
-    const whiteGeo = new THREE.CylinderGeometry(0.22, 0.18, 0.13, 20);
-    const whiteMat = registerToonMaterial(
-      new THREE.MeshToonMaterial({ color: 0xfffcf0, transparent: true }),
-      'white'
-    );
-    eggGroup.add(new THREE.Mesh(whiteGeo, whiteMat));
-
-    const yolkGeo = new THREE.SphereGeometry(0.11, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.5);
-    yolkGeo.translate(0, 0.055, 0);
-    const yolkMat = registerToonMaterial(
-      new THREE.MeshToonMaterial({ color: PALETTE.orange, transparent: true }),
-      'orange'
-    );
-    eggGroup.add(new THREE.Mesh(yolkGeo, yolkMat));
-
-    eggGroup.position.set(-0.3 + e * 0.5, 0.35, 0.22 - e * 0.2);
-    eggGroup.rotation.set(0.2, e * 0.6, 0.15);
-    group.add(eggGroup);
-  }
-
-  for (let s = 0; s < 4; s++) {
-    const scallionGeo = new THREE.TorusGeometry(0.07, 0.022, 8, 12);
-    const scallionMat = registerToonMaterial(
-      new THREE.MeshToonMaterial({ color: 0x22aa33, transparent: true }),
-      'custom-scallion'
-    );
-    const scallionMesh = new THREE.Mesh(scallionGeo, scallionMat);
-    scallionMesh.position.set(0.08 + (s % 2) * 0.22, 0.35, -0.18 + (s * 0.14));
-    scallionMesh.rotation.set(Math.PI / 2 + 0.1, 0.3 * s, 0);
-    group.add(scallionMesh);
-  }
-
-  const sticksGroup = new THREE.Group();
-  for (let st = 0; st < 2; st++) {
-    const stickGeo = new THREE.CylinderGeometry(0.03, 0.055, 2.1, 8);
-    stickGeo.translate(0, 1.05, 0);
-    const stickMat = registerToonMaterial(
-      new THREE.MeshToonMaterial({ color: PALETTE.gold, transparent: true }),
-      'gold'
-    );
-    const stickMesh = new THREE.Mesh(stickGeo, stickMat);
-    stickMesh.position.set((st - 0.5) * 0.1, 0, 0);
-    stickMesh.rotation.z = -0.52;
-    stickMesh.rotation.y = st * 0.06;
-    sticksGroup.add(stickMesh);
-  }
-  const liftCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, 0.25, 0),
-    new THREE.Vector3(0.28, 0.7, 0.08),
-    new THREE.Vector3(0.6, 1.0, 0.04),
-    new THREE.Vector3(0.48, 0.55, -0.04)
-  ]);
-  const liftGeo = new THREE.TubeGeometry(liftCurve, 20, 0.035, 6, false);
-  const liftMat = registerToonMaterial(
-    new THREE.MeshToonMaterial({ color: PALETTE.amber, transparent: true }),
-    'amber'
-  );
-  sticksGroup.add(new THREE.Mesh(liftGeo, liftMat));
-
-  sticksGroup.position.set(0.18, 0.28, 0);
-  group.add(sticksGroup);
-
-  return group;
-}
-
-/**
- * 4. SACHET (Point 1 fix: front face UV mapping corrected for left-to-right reading)
- */
-function buildSachetModel() {
-  const group = new THREE.Group();
-
-  const w = 1.0, h = 1.25, d = 0.2;
-  const sachetGeo = new THREE.BoxGeometry(w, h, d, 16, 20, 6);
-  const pos = sachetGeo.attributes.position;
-  const uv = sachetGeo.attributes.uv;
-  const halfW = w * 0.5, halfH = h * 0.5;
-
-  for (let i = 0; i < pos.count; i++) {
-    let x = pos.getX(i);
-    let y = pos.getY(i);
-    let z = pos.getZ(i);
-
-    const env = (1 - (x / halfW) ** 2) * (1 - (y / halfH) ** 2);
-    if (Math.abs(z) > 0.001) {
-      z = Math.sign(z) * (0.1 * (0.25 + 0.75 * env));
-    }
-
-    if (x > 0.25 * halfW && y > 0.4 * halfH) {
-      const tear = (x - 0.25 * halfW) * 0.45;
-      y -= tear;
-      x -= tear * 0.3;
-    }
-    pos.setXYZ(i, x, y, z);
-  }
-  sachetGeo.computeVertexNormals();
-
-  // Correct UVs on the front face (+Z)
   for (let i = 0; i < pos.count; i++) {
     if (pos.getZ(i) > d * 0.1) {
       const u = (pos.getX(i) + halfW) / w;
@@ -559,195 +358,281 @@ function buildSachetModel() {
   }
   uv.needsUpdate = true;
 
-  const sachetTex = createSachetLabelTexture();
-  const sachetMat = registerToonMaterial(
-    new THREE.MeshToonMaterial({ map: sachetTex, color: 0xffffff, transparent: true }),
-    'white'
+  const packLabelTex = createPackLabelTexture();
+  const packMat = registerToonMaterial(
+    new THREE.MeshToonMaterial({
+      map: packLabelTex,
+      color: 0xffffff,
+      transparent: true
+    }),
+    'orange'
   );
-  texturedMaterials.sachet.push(sachetMat);
+  texturedMaterials.pack.push(packMat);
 
-  const sachetMesh = new THREE.Mesh(sachetGeo, sachetMat);
-  group.add(sachetMesh);
-  registerOutlineMaterial(applyOutline(sachetMesh, 0.04));
-
-  const spiceGroup = new THREE.Group();
-  for (let sp = 0; sp < 12; sp++) {
-    const dotGeo = new THREE.DodecahedronGeometry(0.032, 0);
-    const dotMat = registerToonMaterial(
-      new THREE.MeshToonMaterial({
-        color: sp % 2 === 0 ? PALETTE.red : PALETTE.orange,
-        transparent: true
-      }),
-      sp % 2 === 0 ? 'red' : 'orange'
-    );
-    const dotMesh = new THREE.Mesh(dotGeo, dotMat);
-    dotMesh.position.set(
-      0.4 + Math.random() * 0.5,
-      0.6 + Math.random() * 0.6,
-      (Math.random() - 0.5) * 0.3
-    );
-    spiceGroup.add(dotMesh);
-  }
-  group.add(spiceGroup);
+  const packMesh = new THREE.Mesh(geo, packMat);
+  group.add(packMesh);
+  registerOutlineMaterial(applyOutline(packMesh, 0.045));
 
   return group;
 }
 
-/**
- * 5. BRICK
- */
-function buildBrickModel() {
+function buildBowlModel() {
   const group = new THREE.Group();
 
-  const noodleCurves = [];
-  const rows = 4;
-  const cols = 5;
-  const spacingX = 0.22;
-  const spacingY = 0.22;
+  const bowlPoints = [];
+  bowlPoints.push(new THREE.Vector2(0.52, -0.65));
+  bowlPoints.push(new THREE.Vector2(0.75, -0.4));
+  bowlPoints.push(new THREE.Vector2(1.22, 0.25));
+  bowlPoints.push(new THREE.Vector2(1.36, 0.65));
+  bowlPoints.push(new THREE.Vector2(1.42, 0.72));
+  bowlPoints.push(new THREE.Vector2(1.38, 0.76));
+  bowlPoints.push(new THREE.Vector2(1.30, 0.72));
 
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const baseX = (c - (cols - 1) * 0.5) * spacingX;
-      const baseY = (r - (rows - 1) * 0.5) * spacingY;
-      const pts = [];
-      const waves = 8;
-      for (let w = 0; w <= waves; w++) {
-        const pz = -0.42 + (w / waves) * 0.84;
-        const px = baseX + Math.sin(w * 2.2 + r) * 0.055;
-        const py = baseY + Math.cos(w * 2.5 + c) * 0.055;
-        pts.push(new THREE.Vector3(px, py, pz));
-      }
-      noodleCurves.push(new THREE.CatmullRomCurve3(pts));
-    }
-  }
+  const bowlGeo = new THREE.LatheGeometry(bowlPoints, 32);
+  const bowlMat = registerToonMaterial(
+    new THREE.MeshToonMaterial({ color: PALETTE.red, transparent: true }),
+    'red'
+  );
+  const bowlMesh = new THREE.Mesh(bowlGeo, bowlMat);
+  group.add(bowlMesh);
+  registerOutlineMaterial(applyOutline(bowlMesh, 0.045));
 
-  for (let cr = 0; cr < 6; cr++) {
-    const pts = [];
-    const py = -0.28 + cr * 0.11;
-    for (let a = 0; a <= 10; a++) {
-      const px = -0.5 + (a / 10) * 1.0;
-      const pz = Math.sin(a * 2.4 + cr) * 0.38;
-      pts.push(new THREE.Vector3(px, py + Math.cos(a * 1.8) * 0.035, pz));
-    }
-    noodleCurves.push(new THREE.CatmullRomCurve3(pts));
-  }
-
-  const noodleMat = registerToonMaterial(
+  const footGeo = new THREE.CylinderGeometry(0.56, 0.52, 0.14, 32);
+  const footMat = registerToonMaterial(
     new THREE.MeshToonMaterial({ color: PALETTE.gold, transparent: true }),
     'gold'
   );
+  const footMesh = new THREE.Mesh(footGeo, footMat);
+  footMesh.position.y = -0.72;
+  group.add(footMesh);
+  registerOutlineMaterial(applyOutline(footMesh, 0.035));
 
-  noodleCurves.forEach((curve) => {
-    const tubeGeo = new THREE.TubeGeometry(curve, 18, 0.035, 6, false);
-    group.add(new THREE.Mesh(tubeGeo, noodleMat));
-  });
+  const brothGeo = new THREE.CircleGeometry(1.28, 32);
+  const brothMat = registerToonMaterial(
+    new THREE.MeshToonMaterial({ color: PALETTE.orange, transparent: true }),
+    'orange'
+  );
+  const brothMesh = new THREE.Mesh(brothGeo, brothMat);
+  brothMesh.rotation.x = -Math.PI / 2;
+  brothMesh.position.y = 0.58;
+  group.add(brothMesh);
 
   return group;
 }
 
-/**
- * 6. CHOPSTICKS (Point 4 fix: clear pair with V-gap, 1.5x thicker + visible bundle of 8 noodle strands)
- */
+function buildSachetModel() {
+  const group = new THREE.Group();
+
+  const sSize = 1.35;
+  const sThick = 0.16;
+  const sGeo = new THREE.BoxGeometry(sSize, sSize * 1.15, sThick, 14, 14, 4);
+
+  const pos = sGeo.attributes.position;
+  const uv = sGeo.attributes.uv;
+  const halfS = sSize * 0.5;
+  const halfH = sSize * 1.15 * 0.5;
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    let z = pos.getZ(i);
+
+    const nx = x / halfS;
+    const ny = y / halfH;
+    const puff = Math.max(0, 1 - nx * nx) * Math.max(0, 1 - ny * ny);
+    if (Math.abs(z) > 0.001) {
+      z = Math.sign(z) * (sThick * 0.5 * (0.3 + 0.7 * puff));
+    }
+    pos.setXYZ(i, x, y, z);
+
+    if (z > sThick * 0.1) {
+      uv.setXY(i, (x + halfS) / sSize, (y + halfH) / (sSize * 1.15));
+    }
+  }
+  sGeo.computeVertexNormals();
+  uv.needsUpdate = true;
+
+  const sTex = createSachetLabelTexture();
+  const sMat = registerToonMaterial(
+    new THREE.MeshToonMaterial({
+      map: sTex,
+      color: 0xffffff,
+      transparent: false,
+      depthWrite: true,
+      side: THREE.FrontSide
+    }),
+    'red'
+  );
+  texturedMaterials.sachet.push(sMat);
+
+  const sMesh = new THREE.Mesh(sGeo, sMat);
+  group.add(sMesh);
+  registerOutlineMaterial(applyOutline(sMesh, 0.04));
+
+  return group;
+}
+
 function buildChopsticksModel() {
   const group = new THREE.Group();
 
-  // Distinct pair of thick chopsticks with a visible V-spread gap
-  const stickThicknessTop = 0.055; // ~1.5x thicker
-  const stickThicknessBase = 0.095;
-  const stickLength = 2.8;
-
-  // Stick 1
-  const geo1 = new THREE.CylinderGeometry(stickThicknessTop, stickThicknessBase, stickLength, 12);
+  const stickLength = 2.4;
+  const geo1 = new THREE.CylinderGeometry(0.04, 0.08, stickLength, 12);
   geo1.translate(0, stickLength * 0.5, 0);
   const mat1 = registerToonMaterial(
     new THREE.MeshToonMaterial({ color: PALETTE.red, transparent: true }),
     'red'
   );
   const stick1 = new THREE.Mesh(geo1, mat1);
-  stick1.position.set(-0.12, 0, 0);
-  stick1.rotation.z = -0.42;
-  stick1.rotation.x = 0.12;
+  stick1.position.set(-0.1, -stickLength * 0.35, 0);
+  stick1.rotation.z = -0.38;
   group.add(stick1);
   registerOutlineMaterial(applyOutline(stick1, 0.035));
 
-  // Stick 2 (angled wider for clear V-gap)
-  const geo2 = new THREE.CylinderGeometry(stickThicknessTop, stickThicknessBase, stickLength, 12);
+  const geo2 = new THREE.CylinderGeometry(0.04, 0.08, stickLength, 12);
   geo2.translate(0, stickLength * 0.5, 0);
   const mat2 = registerToonMaterial(
     new THREE.MeshToonMaterial({ color: PALETTE.orange, transparent: true }),
     'orange'
   );
   const stick2 = new THREE.Mesh(geo2, mat2);
-  stick2.position.set(0.12, 0, 0);
-  stick2.rotation.z = -0.56; // V-angle
-  stick2.rotation.x = -0.08;
+  stick2.position.set(0.1, -stickLength * 0.35, 0);
+  stick2.rotation.z = -0.52;
   group.add(stick2);
   registerOutlineMaterial(applyOutline(stick2, 0.035));
-
-  // Bundle of 8 wavy noodle strands hanging down between the chopsticks
-  const nMat = registerToonMaterial(
-    new THREE.MeshToonMaterial({ color: PALETTE.gold, transparent: true }),
-    'gold'
-  );
-
-  const strandConfigs = [
-    { startX: -0.06, startZ: 0.02, phase: 0.1, length: 1.8 },
-    { startX: 0.02, startZ: -0.04, phase: 0.9, length: 2.1 },
-    { startX: 0.08, startZ: 0.05, phase: 1.7, length: 1.9 },
-    { startX: -0.12, startZ: -0.02, phase: 2.4, length: 2.3 },
-    { startX: 0.14, startZ: 0.0, phase: 3.2, length: 2.0 },
-    { startX: -0.02, startZ: 0.08, phase: 4.1, length: 2.2 },
-    { startX: 0.05, startZ: -0.08, phase: 4.9, length: 1.7 },
-    { startX: -0.09, startZ: 0.04, phase: 5.6, length: 2.4 }
-  ];
-
-  strandConfigs.forEach((cfg) => {
-    const pts = [];
-    const segments = 10;
-    for (let s = 0; s <= segments; s++) {
-      const t = s / segments;
-      const py = 1.3 - t * cfg.length;
-      const wave = Math.sin(t * 7.0 + cfg.phase) * (0.08 + t * 0.06);
-      const px = cfg.startX + wave;
-      const pz = cfg.startZ + Math.cos(t * 6.0 + cfg.phase) * 0.06;
-      pts.push(new THREE.Vector3(px, py, pz));
-    }
-    const curve = new THREE.CatmullRomCurve3(pts);
-    const tubeGeo = new THREE.TubeGeometry(curve, 24, 0.032, 6, false);
-    group.add(new THREE.Mesh(tubeGeo, nMat));
-  });
 
   return group;
 }
 
-const MODEL_FACTORIES = {
+function buildBrickModel() {
+  const group = new THREE.Group();
+
+  const w = 1.6;
+  const h = 1.35;
+  const d = 0.55;
+  const geo = new THREE.BoxGeometry(w, h, d, 12, 12, 6);
+  const mat = registerToonMaterial(
+    new THREE.MeshToonMaterial({ color: PALETTE.gold, transparent: true }),
+    'gold'
+  );
+  const mesh = new THREE.Mesh(geo, mat);
+  group.add(mesh);
+  registerOutlineMaterial(applyOutline(mesh, 0.04));
+
+  return group;
+}
+
+const PROCEDURAL_FACTORIES = {
   cup: buildCupModel,
   pack: buildPackModel,
   bowl: buildBowlModel,
   sachet: buildSachetModel,
-  brick: buildBrickModel,
-  chopsticks: buildChopsticksModel
+  chopsticks: buildChopsticksModel,
+  brick: buildBrickModel
 };
 
-// --- Main Side 3D System ---
+function ensureModelHelpers(model, defaultRawH = 1.8) {
+  if (!model) return model;
+
+  if (!model.userData.rawHeight || !model.userData.rawWidth) {
+    const box = new THREE.Box3().setFromObject(model);
+    const rawH = Math.max(0.1, box.max.y - box.min.y) || defaultRawH;
+    const rawW = Math.max(0.1, box.max.x - box.min.x) || (rawH * 0.8);
+    model.userData.rawHeight = model.userData.rawHeight || rawH;
+    model.userData.rawWidth = model.userData.rawWidth || rawW;
+  }
+
+  if (!model.userData.setTargetHeight) {
+    model.userData.setTargetHeight = (targetH) => {
+      const s = targetH / (model.userData.rawHeight || defaultRawH);
+      model.scale.set(s, s, s);
+      return s;
+    };
+  }
+
+  if (!model.userData.setOpacity) {
+    model.userData.setOpacity = (alpha) => {
+      const isTrans = alpha < 0.999;
+      model.traverse((child) => {
+        if (child.isMesh && child.material) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach((m) => {
+            if (m.transparent !== isTrans) {
+              m.transparent = isTrans;
+              m.needsUpdate = true;
+            }
+            m.opacity = alpha;
+          });
+        }
+      });
+    };
+  }
+
+  return model;
+}
+
+// Hero products to avoid in section slots where possible
+const HERO_PRODUCT_IDS = new Set([
+  'cung-dinh-bo-ham',
+  'hao-hao-tom-chua-cay',
+  'indomie-mi-goreng',
+  '3mien-gold-tom-chua-cay',
+  'siukay-hai-san'
+]);
+
+// Section-specific product assignment for realistic models
+// Ensures no product id repeats across slots and hero products are avoided where possible
+const SECTION_SLOT_PRODUCTS = {
+  about: {
+    mainId: 'omachi-bo-ham',
+    compDef: 'gau-do-lau-thai-tom'
+  },
+  flavors: {
+    mainId: 'hao-hao-tom-chua-cay',
+    compDef: 'sachet'
+  },
+  activities: {
+    mainId: 'siukay-hai-san',
+    compDef: 'indomie-mi-goreng'
+  },
+  schedule: {
+    mainId: 'shin-super-spicy',
+    compDef: 'mi-lau-thai-tom'
+  },
+  tickets: {
+    mainId: 'buldak-cheese',
+    compDef: 'kokomi-tom'
+  },
+  faq: {
+    mainId: 'cupnoodle-seafood',
+    compDef: 'koreno-bulgogi'
+  }
+};
+
+function getProductDataById(id) {
+  if (window.MGF_PRODUCTS && Array.isArray(window.MGF_PRODUCTS)) {
+    return window.MGF_PRODUCTS.find((p) => p.id === id) || null;
+  }
+  return null;
+}
+
+function getProductDataByType(type, excludeId = null) {
+  if (window.MGF_PRODUCTS && Array.isArray(window.MGF_PRODUCTS)) {
+    const list = window.MGF_PRODUCTS.filter((p) => p.type === type && p.id !== excludeId);
+    if (list.length > 0) return list[0];
+  }
+  return null;
+}
+
+// --- Main Side 3D Component ---
+
+let isSide3DInitialized = false;
 
 export function initSide3D() {
   const container = document.getElementById('side-stage');
   if (!container) return;
+  if (container.querySelector('canvas') || isSide3DInitialized) return;
 
-  // Show on screens >= 600px; < 600px off
-  if (window.innerWidth < 600) {
-    // Keep listener to initialize when resized above 600
-    const onFirstResize = () => {
-      if (window.innerWidth >= 600) {
-        window.removeEventListener('resize', onFirstResize);
-        initSide3D();
-      }
-    };
-    window.addEventListener('resize', onFirstResize);
-    return;
-  }
-
+  isSide3DInitialized = true;
   updatePaletteColors();
 
   const scene = new THREE.Scene();
@@ -762,10 +647,21 @@ export function initSide3D() {
   });
   renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
   renderer.setSize(window.innerWidth, window.innerHeight);
   container.appendChild(renderer.domElement);
+  setRendererCapabilities(renderer);
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 1.15);
+  // PMREM Environment for packaging reflections
+  const pmremGenerator = new THREE.PMREMGenerator(renderer);
+  pmremGenerator.compileEquirectangularShader();
+  const roomEnv = new RoomEnvironment();
+  const envTexture = pmremGenerator.fromScene(roomEnv, 0.04).texture;
+  scene.environment = envTexture;
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 1.1);
   scene.add(ambientLight);
 
   const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
@@ -776,120 +672,210 @@ export function initSide3D() {
   rimLight.position.set(-6, -4, -4);
   scene.add(rimLight);
 
-  const leftSlotGroup = new THREE.Group();
-  const rightSlotGroup = new THREE.Group();
-  scene.add(leftSlotGroup);
-  scene.add(rightSlotGroup);
+  // Builder for slot models with strict real-product enforcement:
+  // Rule: cup, pack and bowl must ALWAYS be real products.
+  // If unique ones run out, reuse a real product (preferring non-hero) rather than a procedural model.
+  // Procedural is only for sachet.
+  function createSlotModel(typeKey, preferredId, usedIds = new Set()) {
+    if (!typeKey) return null;
 
-  const models = {
-    left: {},
-    right: {}
-  };
+    const allProducts = (window.MGF_PRODUCTS && Array.isArray(window.MGF_PRODUCTS))
+      ? window.MGF_PRODUCTS
+      : [];
 
-  Object.keys(MODEL_FACTORIES).forEach((key) => {
-    const factory = MODEL_FACTORIES[key];
-
-    const modelL = factory();
-    modelL.visible = false;
-    leftSlotGroup.add(modelL);
-    models.left[key] = modelL;
-
-    const modelR = factory();
-    modelR.visible = false;
-    // Do NOT scale x by -1 to prevent text mirroring (Point 1 fix); position in right slot normally
-    rightSlotGroup.add(modelR);
-    models.right[key] = modelR;
-  });
-
-  // Accurate gutter placement & sizing (Point 2)
-  let slotBaseX = 4.2;
-  let slotScale = 1.0;
-
-  function updateSlotTransforms() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    const aspect = w / h;
-
-    camera.aspect = aspect;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-
-    const vHeightHalf = Math.tan((45 * Math.PI) / 360) * 10;
-    const vWidthHalf = vHeightHalf * aspect;
-
-    // Gutter calculation in CSS pixels:
-    // Container width is 1120px max. Free gutter on each side is (w - min(w, 1120)) / 2.
-    const gutterPx = Math.max(0, (w - Math.min(w, 1120)) * 0.5);
-    const pxToWorld = (vWidthHalf * 2) / w;
-
-    // Container boundary world X (absolute position of container edge)
-    const containerEdgeWorldX = (Math.min(w, 1120) * 0.5) * pxToWorld;
-
-    if (w >= 1280) {
-      // Model width in world units ~ 1.6 * scale
-      // Gutter clearance: keep model outside containerEdgeWorldX + 24px safety buffer
-      const safeBufferWorld = 24 * pxToWorld;
-      slotScale = Math.min(1.0, (gutterPx * 0.85) / 160);
-      const modelRadius = 0.85 * slotScale;
-
-      slotBaseX = containerEdgeWorldX + safeBufferWorld + modelRadius;
-      slotBaseX = Math.max(slotBaseX, vWidthHalf - modelRadius * 0.7);
-    } else if (w >= 900) {
-      // 900–1279px: medium scale (~0.55), safely outside content
-      slotScale = 0.55;
-      const safeBufferWorld = 18 * pxToWorld;
-      const modelRadius = 0.85 * slotScale;
-      slotBaseX = containerEdgeWorldX + safeBufferWorld + modelRadius;
-    } else if (w >= 600) {
-      // 600–899px: small models (≈140px, scale ~0.4) peeking ~50% from each viewport edge
-      slotScale = 0.42;
-      // Position model center directly at or slightly outside the viewport edge so ~50% peeks in
-      slotBaseX = vWidthHalf - 0.05;
-    } else {
-      slotScale = 0;
+    // Procedural is strictly for sachet
+    if (typeKey === 'sachet' || preferredId === 'sachet') {
+      if (PROCEDURAL_FACTORIES['sachet']) {
+        return ensureModelHelpers(PROCEDURAL_FACTORIES['sachet']());
+      }
     }
 
-    leftSlotGroup.position.set(-slotBaseX, 0, 0);
-    rightSlotGroup.position.set(slotBaseX, 0, 0);
-  }
-  updateSlotTransforms();
-
-  window.addEventListener('resize', () => {
-    if (window.innerWidth < 600) {
-      leftSlotGroup.visible = false;
-      rightSlotGroup.visible = false;
-    } else {
-      leftSlotGroup.visible = true;
-      rightSlotGroup.visible = true;
-      updateSlotTransforms();
+    // 1. If preferredId is a valid product ID that hasn't been used yet
+    if (preferredId && preferredId !== 'cup' && preferredId !== 'pack' && preferredId !== 'bowl') {
+      const preferredProd = allProducts.find((p) => p.id === preferredId);
+      if (preferredProd && !usedIds.has(preferredProd.id)) {
+        usedIds.add(preferredProd.id);
+        const model = createRealProductModel(preferredProd, {
+          withHoloRim: true,
+          withContactGlow: true,
+          rimColor: PALETTE.gold
+        });
+        allRealModels.push(model);
+        return ensureModelHelpers(model);
+      }
     }
-  });
 
-  function getSideSections() {
-    return Array.from(document.querySelectorAll('section[data-side-left], section[data-side-right]')).map((sec) => ({
-      el: sec,
-      leftKey: sec.getAttribute('data-side-left'),
-      rightKey: sec.getAttribute('data-side-right')
-    }));
+    // 2. Otherwise find an unused product matching typeKey
+    // Prioritize products that are NOT in HERO_PRODUCT_IDS
+    let candidate = allProducts.find(
+      (p) => p.type === typeKey && !usedIds.has(p.id) && !HERO_PRODUCT_IDS.has(p.id)
+    );
+
+    // If none found, allow any unused product of that type
+    if (!candidate) {
+      candidate = allProducts.find((p) => p.type === typeKey && !usedIds.has(p.id));
+    }
+
+    // 3. If unique ones run out: reuse a real product (prefer one not visible in hero) rather than procedural!
+    if (!candidate) {
+      candidate = allProducts.find((p) => p.type === typeKey && !HERO_PRODUCT_IDS.has(p.id));
+    }
+    if (!candidate) {
+      candidate = allProducts.find((p) => p.type === typeKey);
+    }
+
+    if (candidate) {
+      usedIds.add(candidate.id);
+      const model = createRealProductModel(candidate, {
+        withHoloRim: true,
+        withContactGlow: true,
+        rimColor: PALETTE.gold
+      });
+      allRealModels.push(model);
+      return ensureModelHelpers(model);
+    }
+
+    // Non-noodle fallbacks
+    if (PROCEDURAL_FACTORIES[typeKey]) {
+      const model = PROCEDURAL_FACTORIES[typeKey]();
+      return ensureModelHelpers(model);
+    }
+
+    return null;
   }
 
-  let sideSections = getSideSections();
+  // Find all .product-slot elements declared in HTML
+  const slotElements = Array.from(document.querySelectorAll('.product-slot[data-products]'));
+  const sectionSlots = [];
 
-  function setModelOpacity(modelGroup, opacity) {
-    modelGroup.traverse((child) => {
+  function buildSlots() {
+    sectionSlots.forEach((slot) => {
+      scene.remove(slot.group);
+    });
+    sectionSlots.length = 0;
+    allRealModels.length = 0;
+
+    const usedIds = new Set();
+
+    slotElements.forEach((slotEl, idx) => {
+      const productsAttr = slotEl.getAttribute('data-products') || '';
+      const tokens = productsAttr.trim().split(/\s+/);
+      const typeA = tokens[0] || 'cup';
+      const typeB = tokens[1] || 'pack';
+
+      const sectionEl = slotEl.closest('section');
+      const secId = sectionEl ? sectionEl.id : `sec-${idx}`;
+      const isLeft = slotEl.classList.contains('product-left') || Boolean(slotEl.closest('.product-left'));
+
+      const mapping = SECTION_SLOT_PRODUCTS[secId];
+      const preferredIdA = mapping ? mapping.mainId : null;
+      const preferredIdB = mapping ? mapping.compDef : null;
+
+      const modelA = createSlotModel(typeA, preferredIdA, usedIds);
+      const modelB = createSlotModel(typeB, preferredIdB, usedIds);
+
+      const group = new THREE.Group();
+      group.visible = false;
+      scene.add(group);
+
+      if (modelA) group.add(modelA);
+      if (modelB) group.add(modelB);
+
+      sectionSlots.push({
+        slotEl,
+        secId,
+        isLeft,
+        typeA,
+        typeB,
+        modelA,
+        modelB,
+        group,
+        idx
+      });
+    });
+  }
+
+  buildSlots();
+
+  if (!window.MGF_PRODUCTS || window.MGF_PRODUCTS.length === 0) {
+    const checkTimer = setInterval(() => {
+      if (window.MGF_PRODUCTS && window.MGF_PRODUCTS.length > 0) {
+        clearInterval(checkTimer);
+        buildSlots();
+      }
+    }, 150);
+  }
+
+  // Universal helper to set model opacity across all materials
+  function setModelOpacity(model, opacity) {
+    if (!model) return;
+    if (model.userData && model.userData.setOpacity) {
+      model.userData.setOpacity(opacity);
+      return;
+    }
+    const isTrans = opacity < 0.999;
+    model.traverse((child) => {
       if (child.isMesh && child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach((m) => {
-            m.opacity = opacity;
-          });
-        } else {
-          child.material.opacity = opacity;
-        }
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach((m) => {
+          if (m.transparent !== isTrans) {
+            m.transparent = isTrans;
+            m.needsUpdate = true;
+          }
+          m.opacity = opacity;
+        });
       }
     });
   }
 
-  // Palette & Theme change listener (Point 3)
+  // Box3 contain projection: returns bounding box dimensions projected to screen
+  const tempCorner = new THREE.Vector3();
+  function getProjectedGroupSpan(grp, cam, screenW, screenH) {
+    grp.updateMatrixWorld(true);
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+
+    grp.traverse((child) => {
+      if (child.isMesh && !child.userData.isContactGlow && child.geometry) {
+        if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
+        const b = child.geometry.boundingBox;
+        for (let ix = 0; ix < 2; ix++) {
+          for (let iy = 0; iy < 2; iy++) {
+            for (let iz = 0; iz < 2; iz++) {
+              tempCorner.set(
+                ix === 0 ? b.min.x : b.max.x,
+                iy === 0 ? b.min.y : b.max.y,
+                iz === 0 ? b.min.z : b.max.z
+              );
+              tempCorner.applyMatrix4(child.matrixWorld);
+              tempCorner.project(cam);
+              const sx = (tempCorner.x * 0.5 + 0.5) * screenW;
+              const sy = (-(tempCorner.y * 0.5) + 0.5) * screenH;
+              if (sx < minX) minX = sx;
+              if (sx > maxX) maxX = sx;
+              if (sy < minY) minY = sy;
+              if (sy > maxY) maxY = sy;
+            }
+          }
+        }
+      }
+    });
+
+    if (minX === Infinity) return { width: 0, height: 0 };
+    return { width: maxX - minX, height: maxY - minY };
+  }
+
+  // --- Resize Handler ---
+  function onResize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+  window.addEventListener('resize', onResize);
+
+  // --- Theme Change Listener ---
   window.addEventListener('themechange', () => {
     updatePaletteColors();
     rimLight.color.copy(PALETTE.gold);
@@ -905,7 +891,12 @@ export function initSide3D() {
       mat.color.copy(PALETTE.outline);
     });
 
-    // Regenerate canvas textures with new palette colors (Point 3)
+    allRealModels.forEach((model) => {
+      if (model.userData && model.userData.updateRimColor) {
+        model.userData.updateRimColor(PALETTE.gold);
+      }
+    });
+
     refreshTexturedMaterials();
   });
 
@@ -920,79 +911,119 @@ export function initSide3D() {
 
   function update() {
     requestAnimationFrame(update);
-    if (!isTabActive || window.innerWidth < 600) return;
+    if (!isTabActive) return;
 
     const time = clock.getElapsedTime();
-    const vh = window.innerHeight;
-    const viewCenter = vh * 0.5;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const viewCenter = h * 0.5;
 
-    const states = {
-      left: {},
-      right: {}
-    };
+    const fovRad = (camera.fov * Math.PI) / 360;
+    const vHeightWorld = 2 * Math.tan(fovRad) * camera.position.z;
+    const vWidthWorld = vHeightWorld * (w / h);
 
-    Object.keys(MODEL_FACTORIES).forEach((key) => {
-      states.left[key] = { opacity: 0, y: 0, rotY: 0 };
-      states.right[key] = { opacity: 0, y: 0, rotY: 0 };
-    });
+    const pitchAngle = 8 * Math.PI / 180;
+    const swayAngleMax = 18 * Math.PI / 180;
+    const bobMax = 0.06;
+    const omega = 1.35;
 
     let anyActive = false;
 
-    sideSections.forEach((sec) => {
-      const rect = sec.el.getBoundingClientRect();
-      const secCenter = rect.top + rect.height * 0.5;
-      const p = (secCenter - viewCenter) / vh;
+    sectionSlots.forEach((slot) => {
+      const { slotEl, isLeft, modelA, modelB, group, idx } = slot;
+      const rect = slotEl.getBoundingClientRect();
 
-      if (Math.abs(p) < 0.8) {
+      // Check if slot is near or inside viewport
+      const centerY = rect.top + rect.height * 0.5;
+      const p = (centerY - viewCenter) / h;
+
+      if (Math.abs(p) < 0.85 && rect.width > 0 && rect.height > 0) {
         anyActive = true;
-        const fade = Math.max(0, 1 - Math.abs(p) / 0.75);
+        group.visible = true;
+
+        const fade = Math.max(0, 1 - Math.abs(p) / 0.72);
         const smoothFade = Math.sin(fade * Math.PI * 0.5);
 
-        const slideY = -p * 1.8;
-        const rotY = -p * 0.6;
+        if (modelA) setModelOpacity(modelA, smoothFade);
+        if (modelB) setModelOpacity(modelB, smoothFade);
 
-        if (sec.leftKey && states.left[sec.leftKey]) {
-          states.left[sec.leftKey].opacity = Math.max(states.left[sec.leftKey].opacity, smoothFade);
-          states.left[sec.leftKey].y = slideY;
-          states.left[sec.leftKey].rotY = rotY;
+        // Convert slot center to world coordinates
+        const slotCenterX = rect.left + rect.width * 0.5;
+        const slotCenterY = rect.top + rect.height * 0.5;
+
+        const worldX = ((slotCenterX / w) - 0.5) * vWidthWorld;
+        const worldY = -((slotCenterY / h) - 0.5) * vHeightWorld;
+
+        const idleBob = prefersReducedMotion ? 0 : Math.sin(time * omega + idx * 0.9) * bobMax;
+        const idleSway = prefersReducedMotion ? 0 : Math.sin(time * omega + idx * 0.9) * swayAngleMax;
+
+        group.position.set(worldX, worldY + idleBob, 0);
+
+        // Convert slot box dimensions to world units
+        const slotWidthWorld = (rect.width / w) * vWidthWorld;
+        const slotHeightWorld = (rect.height / h) * vHeightWorld;
+
+        // typeA is main at ~85% of slot height and centered
+        const targetHeightA = slotHeightWorld * 0.85;
+        // typeB is a companion at ~55% of slot height
+        const targetHeightB = slotHeightWorld * 0.55;
+
+        if (modelA && modelA.userData.setTargetHeight) {
+          modelA.userData.setTargetHeight(targetHeightA);
+        }
+        if (modelB && modelB.userData.setTargetHeight) {
+          modelB.userData.setTargetHeight(targetHeightB);
         }
 
-        if (sec.rightKey && states.right[sec.rightKey]) {
-          states.right[sec.rightKey].opacity = Math.max(states.right[sec.rightKey].opacity, smoothFade);
-          states.right[sec.rightKey].y = slideY;
-          states.right[sec.rightKey].rotY = rotY;
+        // Poses: mirrored yaw (left +20°, right -20°), slight forward tilt ~8°
+        const baseYawA = isLeft ? (20 * Math.PI / 180) : (-20 * Math.PI / 180);
+        const baseYawB = isLeft ? (16 * Math.PI / 180) : (-16 * Math.PI / 180);
+
+        // Calculate model widths in local space
+        const sA = (modelA && modelA.userData.rawHeight) ? (targetHeightA / modelA.userData.rawHeight) : 1.0;
+        const currWA = (modelA && modelA.userData.rawWidth) ? (modelA.userData.rawWidth * sA) : (targetHeightA * 0.7);
+        const halfWA = currWA * 0.5;
+
+        const sB = (modelB && modelB.userData.rawHeight) ? (targetHeightB / modelB.userData.rawHeight) : 1.0;
+        const currWB = (modelB && modelB.userData.rawWidth) ? (modelB.userData.rawWidth * sB) : (targetHeightB * 0.7);
+        const halfWB = currWB * 0.5;
+
+        // Beside main with <=30% overlap (aiming for 20% overlap so companion reads clearly)
+        const overlap = 0.20 * currWB;
+        const separation = halfWA + halfWB - overlap;
+
+        const outerSign = isLeft ? -1 : 1;
+        const rawOffsetX = outerSign * separation;
+        const offsetY = -0.08 * targetHeightA; // slightly lower
+        const offsetZ = -0.30; // slightly behind
+
+        // Center the combined pair horizontally inside group
+        const pairMinX = Math.min(-halfWA, rawOffsetX - halfWB);
+        const pairMaxX = Math.max(halfWA, rawOffsetX + halfWB);
+        const pairCenterX = (pairMinX + pairMaxX) * 0.5;
+
+        if (modelA) {
+          modelA.position.set(-pairCenterX, 0, 0);
+          modelA.rotation.set(pitchAngle, baseYawA + idleSway, 0);
         }
+
+        if (modelB) {
+          modelB.position.set(rawOffsetX - pairCenterX, offsetY, offsetZ);
+          modelB.rotation.set(pitchAngle, baseYawB + idleSway * 0.85, 0);
+        }
+
+        // Fit with contain so nothing exceeds the slot
+        const pairW = pairMaxX - pairMinX;
+        const pairH = Math.max(targetHeightA, targetHeightB - offsetY);
+        const projW = (pairW / vWidthWorld) * w;
+        const projH = (pairH / vHeightWorld) * h;
+        const maxAllowedW = Math.max(10, rect.width - 24);
+        const maxAllowedH = Math.max(10, rect.height - 24);
+        const containScale = Math.min(1.0, maxAllowedW / projW, maxAllowedH / projH);
+        group.scale.set(containScale, containScale, containScale);
+      } else {
+        group.visible = false;
       }
-    });
-
-    ['left', 'right'].forEach((side) => {
-      Object.keys(MODEL_FACTORIES).forEach((key) => {
-        const mesh = models[side][key];
-        const state = states[side][key];
-
-        if (state.opacity > 0.01) {
-          mesh.visible = true;
-          setModelOpacity(mesh, state.opacity);
-
-          let idleY = 0;
-          let idleRot = 0;
-          if (!prefersReducedMotion) {
-            idleY = Math.sin(time * 1.5 + (side === 'left' ? 0 : 1.5)) * 0.1;
-            idleRot = Math.sin(time * 0.8) * 0.12;
-          }
-
-          const scale = slotScale * (0.8 + 0.2 * state.opacity);
-          mesh.scale.set(scale, scale, scale);
-
-          mesh.position.y = state.y + idleY;
-          // Keep label facing camera: slight tilt inward, no mirrored flip
-          const facingSign = side === 'left' ? 1 : -1;
-          mesh.rotation.y = state.rotY * facingSign + idleRot;
-          mesh.rotation.z = side === 'left' ? 0.06 : -0.06;
-        } else {
-          mesh.visible = false;
-        }
-      });
     });
 
     if (anyActive) {

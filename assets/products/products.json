@@ -1,0 +1,287 @@
+[
+  {
+    "id": "siukay-hai-san",
+    "name": "Siukay · Hải sản",
+    "type": "bowl",
+    "front": "assets/products/siukay-hai-san.webp",
+    "w": 426,
+    "h": 363,
+    "colors": {
+      "main": "#DFC085",
+      "accent": "#543A2F"
+    },
+    "lid": "assets/products/siukay-hai-san-lid.webp",
+    "lidSource": "photo",
+    "wrap": "assets/products/siukay-hai-san-wrap.webp",
+    "body": {
+      "topW": 0.91,
+      "bottomW": 0.57,
+      "rimY": 0.14
+    }
+  },
+  {
+    "id": "3mien-gold-tom-chua-cay",
+    "name": "3 Miền Gold · Tôm chua cay",
+    "type": "cup",
+    "front": "assets/products/3mien-gold-tom-chua-cay.webp",
+    "w": 289,
+    "h": 377,
+    "colors": {
+      "main": "#2A2321",
+      "accent": "#A9886F"
+    },
+    "lid": "assets/products/3mien-gold-tom-chua-cay-lid.webp",
+    "lidSource": "photo",
+    "wrap": "assets/products/3mien-gold-tom-chua-cay-wrap.webp",
+    "body": {
+      "topW": 0.96,
+      "bottomW": 0.62,
+      "rimY": 0.12
+    }
+  },
+  {
+    "id": "buldak-cheese",
+    "name": "Buldak · Phô mai",
+    "type": "cup",
+    "front": "assets/products/buldak-cheese.webp",
+    "w": 388,
+    "h": 432,
+    "colors": {
+      "main": "#E6B248",
+      "accent": "#C7652A"
+    },
+    "lid": "assets/products/buldak-cheese-lid.webp",
+    "lidSource": "generated",
+    "wrap": "assets/products/buldak-cheese-wrap.webp",
+    "body": {
+      "topW": 0.91,
+      "bottomW": 0.68,
+      "rimY": 0.12
+    }
+  },
+  {
+    "id": "cung-dinh-bo-ham",
+    "name": "Cung Đình · Bò hầm",
+    "type": "cup",
+    "front": "assets/products/cung-dinh-bo-ham.webp",
+    "w": 763,
+    "h": 1024,
+    "colors": {
+      "main": "#DB9F48",
+      "accent": "#E1272B"
+    },
+    "lid": "assets/products/cung-dinh-bo-ham-lid.webp",
+    "lidSource": "photo",
+    "wrap": "assets/products/cung-dinh-bo-ham-wrap.webp",
+    "body": {
+      "topW": 0.85,
+      "bottomW": 0.72,
+      "rimY": 0.12
+    }
+  },
+  {
+    "id": "cupnoodle-seafood",
+    "name": "Cup Noodles · Hải sản",
+    "type": "cup",
+    "front": "assets/products/cupnoodle-seafood.webp",
+    "w": 338,
+    "h": 412,
+    "colors": {
+      "main": "#DCE0EE",
+      "accent": "#36539D"
+    },
+    "lid": "assets/products/cupnoodle-seafood-lid.webp",
+    "lidSource": "photo",
+    "wrap": "assets/products/cupnoodle-seafood-wrap.webp",
+    "body": {
+      "topW": 0.94,
+      "bottomW": 0.71,
+      "rimY": 0.12
+    }
+  },
+  {
+    "id": "gau-do-lau-thai-tom",
+    "name": "Gấu Đỏ · Lẩu thái tôm",
+    "type": "cup",
+    "front": "assets/products/gau-do-lau-thai-tom.webp",
+    "w": 378,
+    "h": 458,
+    "colors": {
+      "main": "#C81F1B",
+      "accent": "#DC7A2F"
+    },
+    "lid": "assets/products/gau-do-lau-thai-tom-lid.webp",
+    "lidSource": "generated",
+    "wrap": "assets/products/gau-do-lau-thai-tom-wrap.webp",
+    "body": {
+      "topW": 0.92,
+      "bottomW": 0.69,
+      "rimY": 0.12
+    }
+  },
+  {
+    "id": "kokomi-tom",
+    "name": "Kokomi · Tôm chua cay",
+    "type": "cup",
+    "front": "assets/products/kokomi-tom.webp",
+    "w": 203,
+    "h": 256,
+    "colors": {
+      "main": "#A73637",
+      "accent": "#90896D"
+    },
+    "lid": "assets/products/kokomi-tom-lid.webp",
+    "lidSource": "generated",
+    "wrap": "assets/products/kokomi-tom-wrap.webp",
+    "body": {
+      "topW": 0.97,
+      "bottomW": 0.74,
+      "rimY": 0.12
+    }
+  },
+  {
+    "id": "koreno-bulgogi",
+    "name": "Koreno · Bulgogi",
+    "type": "cup",
+    "front": "assets/products/koreno-bulgogi.webp",
+    "w": 296,
+    "h": 378,
+    "colors": {
+      "main": "#DDB83C",
+      "accent": "#48291D"
+    },
+    "lid": "assets/products/koreno-bulgogi-lid.webp",
+    "lidSource": "generated",
+    "wrap": "assets/products/koreno-bulgogi-wrap.webp",
+    "body": {
+      "topW": 0.98,
+      "bottomW": 0.75,
+      "rimY": 0.12
+    }
+  },
+  {
+    "id": "miliket-bo",
+    "name": "Miliket · Bò",
+    "type": "cup",
+    "front": "assets/products/miliket-bo.webp",
+    "w": 211,
+    "h": 251,
+    "colors": {
+      "main": "#AC1827",
+      "accent": "#CD684C"
+    },
+    "lid": "assets/products/miliket-bo-lid.webp",
+    "lidSource": "generated",
+    "wrap": "assets/products/miliket-bo-wrap.webp",
+    "body": {
+      "topW": 1.0,
+      "bottomW": 0.66,
+      "rimY": 0.12
+    }
+  },
+  {
+    "id": "modern-lau-thai-tom",
+    "name": "Modern · Lẩu thái tôm",
+    "type": "cup",
+    "front": "assets/products/modern-lau-thai-tom.webp",
+    "w": 237,
+    "h": 305,
+    "colors": {
+      "main": "#CF0D1E",
+      "accent": "#DACEC9"
+    },
+    "lid": "assets/products/modern-lau-thai-tom-lid.webp",
+    "lidSource": "photo",
+    "wrap": "assets/products/modern-lau-thai-tom-wrap.webp",
+    "body": {
+      "topW": 1.0,
+      "bottomW": 0.52,
+      "rimY": 0.12
+    }
+  },
+  {
+    "id": "omachi-bo-ham",
+    "name": "Omachi · Bò hầm",
+    "type": "cup",
+    "front": "assets/products/omachi-bo-ham.webp",
+    "w": 323,
+    "h": 395,
+    "colors": {
+      "main": "#362F27",
+      "accent": "#C4392F"
+    },
+    "lid": "assets/products/omachi-bo-ham-lid.webp",
+    "lidSource": "generated",
+    "wrap": "assets/products/omachi-bo-ham-wrap.webp",
+    "body": {
+      "topW": 0.91,
+      "bottomW": 0.71,
+      "rimY": 0.12
+    }
+  },
+  {
+    "id": "shin-super-spicy",
+    "name": "Shin Ramyun · Siêu cay",
+    "type": "cup",
+    "front": "assets/products/shin-super-spicy.webp",
+    "w": 369,
+    "h": 419,
+    "colors": {
+      "main": "#302928",
+      "accent": "#A13B3A"
+    },
+    "lid": "assets/products/shin-super-spicy-lid.webp",
+    "lidSource": "generated",
+    "wrap": "assets/products/shin-super-spicy-wrap.webp",
+    "body": {
+      "topW": 0.9,
+      "bottomW": 0.69,
+      "rimY": 0.12
+    }
+  },
+  {
+    "id": "hao-hao-tom-chua-cay",
+    "name": "Hảo Hảo · Tôm chua cay",
+    "type": "pack",
+    "front": "assets/products/hao-hao-tom-chua-cay.webp",
+    "w": 481,
+    "h": 393,
+    "colors": {
+      "main": "#EDC3CD",
+      "accent": "#CE4937"
+    },
+    "body": {
+      "aspect": 0.817
+    }
+  },
+  {
+    "id": "indomie-mi-goreng",
+    "name": "Indomie · Mi Goreng",
+    "type": "pack",
+    "front": "assets/products/indomie-mi-goreng.webp",
+    "w": 445,
+    "h": 348,
+    "colors": {
+      "main": "#BC2C26",
+      "accent": "#D29B48"
+    },
+    "body": {
+      "aspect": 0.782
+    }
+  },
+  {
+    "id": "mi-lau-thai-tom",
+    "name": "Lẩu Thái · Tôm chua cay",
+    "type": "pack",
+    "front": "assets/products/mi-lau-thai-tom.webp",
+    "w": 466,
+    "h": 384,
+    "colors": {
+      "main": "#CA141A",
+      "accent": "#D09961"
+    },
+    "body": {
+      "aspect": 0.824
+    }
+  }
+]

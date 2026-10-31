@@ -27,8 +27,8 @@ Landing page demo cho lễ hội trải nghiệm mì gói · 16.12.2026 · ĐH H
 
 | | |
 |---|---|
-| **Hero hologram 3D** | Gói mì phát sáng xoay chậm trên đế chiếu, kèm các gói nhỏ và ly mì bay quanh quỹ đạo. Nghiêng theo chuột. |
-| **Model 3D hai bên** | Ly mì, gói mì, tô mì, gói gia vị, vắt mì, đôi đũa phong cách pop-art; mờ dần hiện ra và biến mất theo vị trí cuộn của từng section. |
+| **Hero 3D** | Ly mì Cung Đình trên đế chiếu hologram, 4 sản phẩm thật vây quanh; chữ bên trái, sân khấu bên phải. |
+| **Model 3D sản phẩm thật** | Ly, gói, tô mì dựng từ ảnh bao bì thật; mỗi section có một khung model lớn xen kẽ trái/phải, mờ dần hiện ra và biến mất theo cuộn. |
 | **Gói mì 3D theo vị** | Mỗi thẻ “Hương vị” là một gói mì 3D in nhãn Tom Yum / Bò Cay / Phô Mai / Tương Đen. |
 | **Sáng / tối** | Tự theo cài đặt máy, có nút đổi và nhớ lựa chọn. |
 | **3 màu chủ đạo** | Cam (mặc định) · Xanh lá · Hồng — đổi toàn bộ giao diện lẫn model 3D. |
@@ -111,7 +111,7 @@ npm run build    # cập nhật js/app.bundle.js
 | Màu của một bảng màu | `css/base.css` → khối `:root[data-palette="…"]` (4 màu từ đậm → sáng) |
 | Bảng màu mặc định | `index.html` → script trong `<head>` (`p = 'orange'`) |
 | Ngày đếm ngược | `index.html` → `data-countdown="2026-12-16T08:00:00+07:00"` |
-| Model hai bên của section | `index.html` → `data-side-left` / `data-side-right` (`cup` · `pack` · `bowl` · `sachet` · `brick` · `chopsticks`) |
+| Model 3D của section | `index.html` → `.product-slot` `data-products="chính phụ"` (`cup` · `pack` · `bowl` · `sachet` · `brick` · `chopsticks`) |
 | Ảnh “Không gian lễ hội” | Chép đè vào `assets/img/`, giữ nguyên tên file |
 
 ## 📦 Triển khai

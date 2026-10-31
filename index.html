@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mì Gói Festival 2026</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E🍜%3C/text%3E%3C/svg%3E">
   <meta name="description" content="MÌ GÓI FESTIVAL – Unbox Your Noodle World. 16.12.2026 tại Đại học Hoa Sen, cơ sở Thành Thái. (Bản demo bố cục)">
   <script>
     (function () {
@@ -50,7 +51,7 @@
     </div>
   </header>
 
-  <!-- Side 3D models: js/side3d.js. Each section declares which model shows in the left/right gutter. -->
+  <!-- Section 3D models: js/side3d.js draws into this fixed layer and fits each model to its .product-slot box. -->
   <div id="side-stage" aria-hidden="true"></div>
 
   <main>
@@ -58,12 +59,10 @@
     <section class="hero" id="top">
       <div id="hero-canvas" aria-hidden="true"></div>
       <div class="hero-content container">
-        <div>
-          <span class="eyebrow">16.12.2026 · 08:00–22:00 · ĐH Hoa Sen – Thành Thái</span>
+        <div class="hero-copy">
+          <span class="eyebrow">16.12.2026 · 08:00–22:00<br>ĐH Hoa Sen – Thành Thái</span>
           <h1 class="hero-title text-fire">MÌ GÓI<br>FESTIVAL</h1>
           <p class="hero-sub">Unbox Your Noodle World — <strong>Mì Gì Cũng Được!</strong></p>
-        </div>
-        <div>
           <div class="countdown" data-countdown="2026-12-16T08:00:00+07:00">
             <div><b data-unit="days">00</b><span>Ngày</span></div>
             <div><b data-unit="hours">00</b><span>Giờ</span></div>
@@ -75,6 +74,8 @@
             <a href="#about" class="btn btn-ghost">Khám phá lễ hội</a>
           </div>
         </div>
+        <!-- hero3d.js fits the product stage into this box -->
+        <div class="hero-stage" aria-hidden="true"></div>
       </div>
     </section>
 
@@ -86,8 +87,9 @@
     </div>
 
     <!-- ABOUT -->
-    <section class="section about" id="about" data-side-left="cup" data-side-right="pack">
+    <section class="section about" id="about">
       <div class="container about-grid">
+        <div class="product-slot product-left" data-products="cup cup" aria-hidden="true"></div>
         <div class="reveal">
           <span class="eyebrow">Về lễ hội</span>
           <h2 class="section-title">Mì gói — thế giới <span class="text-fire">sáng tạo</span> không giới hạn</h2>
@@ -102,12 +104,15 @@
     </section>
 
     <!-- FLAVORS -->
-    <section class="section flavors" id="flavors" data-side-left="pack" data-side-right="sachet">
+    <section class="section flavors" id="flavors">
       <div class="container">
-        <div class="section-head reveal">
+        <div class="section-head has-product product-right">
+          <div class="product-slot product-right" data-products="pack sachet" aria-hidden="true"></div>
+          <div class="section-head-copy reveal">
           <span class="eyebrow">Hương vị</span>
           <h2 class="section-title">Chọn <span class="text-fire">vị sốt</span> của bạn</h2>
           <p class="lead">Bốn vị sốt cho ly mì độc bản tại trạm My Cup Noodles.</p>
+        </div>
         </div>
         <div class="pack-grid">
           <article class="pack holo-card reveal" style="--pack:var(--red)"><div class="pack-art"><span>TOM YUM</span></div><h3>Tom Yum</h3><p>Chua cay kiểu Thái.</p></article>
@@ -119,11 +124,14 @@
     </section>
 
     <!-- ACTIVITIES -->
-    <section class="section activities" id="activities" data-side-left="chopsticks" data-side-right="pack">
+    <section class="section activities" id="activities">
       <div class="container">
-        <div class="section-head reveal">
+        <div class="section-head has-product product-left">
+          <div class="product-slot product-left" data-products="bowl pack" aria-hidden="true"></div>
+          <div class="section-head-copy reveal">
           <span class="eyebrow">Hoạt động</span>
           <h2 class="section-title">Bốn khu <span class="text-fire">trải nghiệm</span></h2>
+        </div>
         </div>
         <div class="zone-grid">
           <article class="zone holo-card reveal"><span class="zone-icon">🎨</span><h3>My Cup Noodles</h3><p>Tự trang trí ly mì, chọn vắt mì, sốt và topping rồi mang về làm kỷ niệm.</p></article>
@@ -135,7 +143,7 @@
     </section>
 
     <!-- GALLERY: client-supplied photos (assets/img). Replace files, keep names, to swap images. -->
-    <section class="section gallery" id="gallery" data-side-left="cup" data-side-right="bowl">
+    <section class="section gallery" id="gallery">
       <div class="container">
         <div class="section-head reveal">
           <span class="eyebrow">Không gian lễ hội</span>
@@ -159,11 +167,14 @@
     </section>
 
     <!-- SCHEDULE -->
-    <section class="section schedule" id="schedule" data-side-left="brick" data-side-right="pack">
+    <section class="section schedule" id="schedule">
       <div class="container narrow">
-        <div class="section-head reveal">
+        <div class="section-head has-product product-right">
+          <div class="product-slot product-right" data-products="cup pack" aria-hidden="true"></div>
+          <div class="section-head-copy reveal">
           <span class="eyebrow">Lịch trình · 16.12</span>
           <h2 class="section-title">Một ngày <span class="text-fire">không nguội</span></h2>
+        </div>
         </div>
         <ol class="timeline">
           <li class="reveal"><time>08:00</time><div><h3>Khai mạc</h3><p>Kick-off tháp ly mì khổng lồ.</p></div></li>
@@ -176,11 +187,14 @@
     </section>
 
     <!-- TICKETS -->
-    <section class="section tickets" id="tickets" data-side-left="bowl" data-side-right="sachet">
+    <section class="section tickets" id="tickets">
       <div class="container">
-        <div class="section-head reveal">
+        <div class="section-head has-product product-left">
+          <div class="product-slot product-left" data-products="cup cup" aria-hidden="true"></div>
+          <div class="section-head-copy reveal">
           <span class="eyebrow">Vé · giá dự kiến</span>
           <h2 class="section-title">Chọn <span class="text-fire">mức cay</span></h2>
+        </div>
         </div>
         <div class="ticket-grid">
           <div class="ticket holo-card reveal"><h3>Cay Nhẹ</h3><p class="price">0đ</p><ul><li>Vào cửa tự do</li><li>Thẻ Passport tích điểm</li></ul><a href="#" class="btn btn-ghost">Đăng ký</a></div>
@@ -191,11 +205,14 @@
     </section>
 
     <!-- FAQ -->
-    <section class="section faq" id="faq" data-side-left="pack" data-side-right="cup">
+    <section class="section faq" id="faq">
       <div class="container narrow">
-        <div class="section-head reveal">
+        <div class="section-head has-product product-right">
+          <div class="product-slot product-right" data-products="cup cup" aria-hidden="true"></div>
+          <div class="section-head-copy reveal">
           <span class="eyebrow">FAQ</span>
           <h2 class="section-title">Hỏi nhanh</h2>
+        </div>
         </div>
         <details class="reveal"><summary>Lễ hội diễn ra ở đâu?</summary><p>Sân ngoài trời Đại học Hoa Sen, cơ sở Thành Thái — 7/1 Thành Thái, P. Diên Hồng, TP.HCM.</p></details>
         <details class="reveal"><summary>Thẻ Passport là gì?</summary><p>Nhận tại cổng check-in, tích điểm qua các trạm để đổi quà.</p></details>
@@ -220,6 +237,9 @@
 
   <!-- 3D: js/hero3d.js + side3d.js + packs3d.js + three, bundled so the page also works from file://.
        After editing any of them: cd tools && npm run build -->
+  <script src="js/products-data.js" defer></script>
+  <!-- file:// only: Chrome blocks image files as WebGL textures there, so use the embedded copies. -->
+  <script>if (location.protocol === 'file:') document.write('<script src="js/products-textures.js" defer><\/script>');</script>
   <script src="js/app.bundle.js" defer></script>
   <script src="js/ui.js" defer></script>
 </body>
