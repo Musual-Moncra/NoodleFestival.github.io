@@ -881,7 +881,6 @@ export function initSide3D() {
     const vHeightWorld = 2 * Math.tan(fovRad) * camera.position.z;
     const vWidthWorld = vHeightWorld * (w / h);
 
-    const basePitch = 8 * Math.PI / 180;
     const bobAmp = isMobile ? 0.020 : 0.045;
     const swayYawAmp = isMobile ? (2.5 * Math.PI / 180) : (4.0 * Math.PI / 180);
     const swayPitchAmp = isMobile ? (1.2 * Math.PI / 180) : (2.0 * Math.PI / 180);
@@ -935,6 +934,11 @@ export function initSide3D() {
       const maxLocalDim = (model.userData && model.userData.maxLocalDim) || 1.8;
       const realW = (model.userData && model.userData.realWidth) || 1.4;
 
+      const isCupOrBowl = slot.type === 'cup' || slot.type === 'bowl';
+      // Tilt cups and bowls 22° forward towards the viewer to clearly show the foil lid + noodle aperture
+      const basePitch = isCupOrBowl ? (22 * Math.PI / 180) : (8 * Math.PI / 180);
+      const baseYaw = isLeft ? (18 * Math.PI / 180) : (-18 * Math.PI / 180);
+
       let targetSizePx = 0;
       let slotCenterX = 0;
       let slotCenterY = 0;
@@ -945,9 +949,10 @@ export function initSide3D() {
         // Sized consistently ~235–245px across all types (cup, bowl, pack, sachet)
         targetSizePx = Math.max(220, Math.min(245, w * 0.165));
 
-        // Screen width of this model at the target scale
+        // Screen width of this model at the target scale, accounting for yaw rotation
         const scale = targetSizePx / maxLocalDim;
-        const modelWPx = realW * scale;
+        const effLocalW = realW * Math.cos(Math.abs(baseYaw)) + (model.userData.realDepth || realW) * Math.sin(Math.abs(baseYaw));
+        const modelWPx = effLocalW * scale;
         const halfWPx = modelWPx * 0.5;
 
         // Position: slot center vertically
@@ -983,7 +988,8 @@ export function initSide3D() {
         // Size: ~70–90px, placed in top corners strictly outside text
         targetSizePx = Math.max(72, Math.min(88, 70 + (w / 860) * 18));
         const scale = targetSizePx / maxLocalDim;
-        const modelWPx = realW * scale;
+        const effLocalW = realW * Math.cos(Math.abs(baseYaw)) + (model.userData.realDepth || realW) * Math.sin(Math.abs(baseYaw));
+        const modelWPx = effLocalW * scale;
         const halfWPx = modelWPx * 0.5;
 
         slotCenterY = secRect.top + targetSizePx * 0.5 + 14;
@@ -1034,8 +1040,7 @@ export function initSide3D() {
 
       group.position.set(worldX, worldY + idleBob, 0);
 
-      // 5. Mirrored poses (inward-facing yaw)
-      const baseYaw = isLeft ? (20 * Math.PI / 180) : (-20 * Math.PI / 180);
+      // 5. Mirrored poses (inward-facing yaw with pitch tilted towards viewer)
       model.rotation.set(basePitch + idleSwayPitch, baseYaw + idleSwayYaw, 0);
 
       // 6. Entry scale (smoothly scales from 80% to 100% on fade-in)

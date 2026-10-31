@@ -308,13 +308,28 @@ export function createLidGeometry(radius = 1.0, isBowl = false, opts = {}) {
 export function createPeeledLidAssembly(radius = 1.0, isBowl = false, opts = {}) {
   const isLowPoly = Boolean(opts && opts.lowPoly);
   const segments = isLowPoly ? 24 : 36;
-  const hingeFraction = 0.10; // 55% sealed, 45% peeled
+  const hingeFraction = 0.08;
   const hingeZ = radius * hingeFraction;
   const chordW = Math.sqrt(Math.max(0, radius * radius - hingeZ * hingeZ));
-  const uvScale = isBowl ? 0.82 : 0.98;
+  const uvScale = isBowl ? 0.88 : 0.98;
+  // Rotate UV by +1.05 rad (~60°) and shift slightly toward the sealed side so the heart/brand logo
+  // sits prominently and upright on the flat 55% sealed lid surface when mesh rotation.y = 1.05
+  const uvCos = Math.cos(1.05);
+  const uvSin = Math.sin(1.05);
+  function calcLidUv(lx, lz) {
+    // Shift sample center slightly toward -lz (the sealed half) so the main logo is centered on the flat 55% side
+    const adjZ = lz + 0.14 * radius;
+    const wx = lx * uvCos + adjZ * uvSin;
+    const wz = -lx * uvSin + adjZ * uvCos;
+    return [
+      0.5 + (wx / radius) * 0.5 * uvScale,
+      0.5 - (wz / radius) * 0.5 * uvScale
+    ];
+  }
 
-  const totalAngle = (110 * Math.PI) / 180; // ~110° backwards fold
-  const creaseW = 0.08 * radius;
+  // Fold backwards ~118° over the back hinge so the silver foil underside catches light cleanly
+  const totalAngle = (118 * Math.PI) / 180;
+  const creaseW = 0.09 * radius;
   const Rc = creaseW / totalAngle;
 
   function foldPoint(origX, origZ) {
@@ -326,22 +341,22 @@ export function createPeeledLidAssembly(radius = 1.0, isBowl = false, opts = {})
     if (dist <= creaseW) {
       const angle = (dist / creaseW) * totalAngle;
       dy = Rc * (1 - Math.cos(angle));
-      dz = Rc * Math.sin(angle);
+      dz = -Rc * Math.sin(angle);
       ny = Math.cos(angle);
-      nz = -Math.sin(angle);
+      nz = Math.sin(angle);
     } else {
       const remDist = dist - creaseW;
       dy = Rc * (1 - Math.cos(totalAngle)) + remDist * Math.sin(totalAngle);
-      dz = Rc * Math.sin(totalAngle) + remDist * Math.cos(totalAngle);
+      dz = -Rc * Math.sin(totalAngle) + remDist * Math.cos(totalAngle);
       ny = Math.cos(totalAngle);
-      nz = -Math.sin(totalAngle);
+      nz = Math.sin(totalAngle);
     }
     return { x: origX, y: dy, z: hingeZ + dz, nx: 0, ny, nz };
   }
 
-  // 1. Base segment (sealed flat back half: z <= hingeZ)
-  const angleStart = Math.atan2(hingeZ, -chordW);
+  // 1. Base segment (sealed flat back 55%: z <= hingeZ, angle from angleEnd backwards through -PI/2 to angleStart)
   const angleEnd = Math.atan2(hingeZ, chordW);
+  const angleStart = Math.atan2(hingeZ, -chordW); // positive angle near PI
 
   const basePos = [];
   const baseUv = [];
@@ -349,21 +364,25 @@ export function createPeeledLidAssembly(radius = 1.0, isBowl = false, opts = {})
   const baseIdx = [];
 
   basePos.push(0, 0, hingeZ);
-  baseUv.push(0.5, 0.5 + (hingeZ / radius) * 0.5 * uvScale);
+  const [u0, v0] = calcLidUv(0, hingeZ);
+  baseUv.push(u0, v0);
   baseNorm.push(0, 1, 0);
 
   const baseSteps = Math.round(segments * 0.55);
+  const backSpan = (Math.PI * 2) - (angleStart - angleEnd); // arc through -PI/2 (back of cup)
   for (let i = 0; i <= baseSteps; i++) {
     const t = i / baseSteps;
-    const a = angleStart - t * (angleStart - (angleEnd - Math.PI * 2));
+    const a = angleEnd - t * backSpan;
     const x = Math.cos(a) * radius;
     const z = Math.sin(a) * radius;
     basePos.push(x, 0, z);
-    baseUv.push(0.5 + (x / radius) * 0.5 * uvScale, 0.5 + (z / radius) * 0.5 * uvScale);
+    const [u, v] = calcLidUv(x, z);
+    baseUv.push(u, v);
     baseNorm.push(0, 1, 0);
   }
   for (let i = 1; i <= baseSteps; i++) {
-    baseIdx.push(0, i, i + 1);
+    // Counter-clockwise when viewed from +Y -> normal points +Y
+    baseIdx.push(0, i + 1, i);
   }
 
   const baseGeo = new THREE.BufferGeometry();
@@ -372,9 +391,9 @@ export function createPeeledLidAssembly(radius = 1.0, isBowl = false, opts = {})
   baseGeo.setAttribute('normal', new THREE.Float32BufferAttribute(baseNorm, 3));
   baseGeo.setIndex(baseIdx);
 
-  // 2. Flap Grid (subdivided across curved crease and flap plane)
+  // 2. Flap Grid (front 45% original lid, peeled and folded backwards from hingeZ)
   const flapCols = Math.round(segments * 0.45);
-  const flapRows = isLowPoly ? 4 : 6;
+  const flapRows = isLowPoly ? 5 : 8;
 
   const topPos = [];
   const topUv = [];
@@ -386,11 +405,12 @@ export function createPeeledLidAssembly(radius = 1.0, isBowl = false, opts = {})
   const underNorm = [];
   const underIdx = [];
 
+  const frontSpan = angleStart - angleEnd; // arc through +PI/2 (front of cup, z >= hingeZ)
   for (let r = 0; r <= flapRows; r++) {
     const rowFrac = r / flapRows;
     for (let c = 0; c <= flapCols; c++) {
       const colFrac = c / flapCols;
-      const a = angleEnd + colFrac * (angleStart + Math.PI * 2 - angleEnd);
+      const a = angleEnd + colFrac * frontSpan;
       const edgeX = Math.cos(a) * radius;
       const edgeZ = Math.sin(a) * radius;
 
@@ -400,17 +420,21 @@ export function createPeeledLidAssembly(radius = 1.0, isBowl = false, opts = {})
 
       const pt = foldPoint(origX, origZ);
 
-      // Top face (printed side, normal facing up/back)
+      // Top face (printed side, normal facing backwards/down when folded past 90°)
       topPos.push(pt.x, pt.y, pt.z);
-      topUv.push(0.5 + (origX / radius) * 0.5 * uvScale, 0.5 + (origZ / radius) * 0.5 * uvScale);
+      const [tu, tv] = calcLidUv(origX, origZ);
+      topUv.push(tu, tv);
       topNorm.push(pt.nx, pt.ny, pt.nz);
 
-      // Underside face (facing forward/down towards camera, offset -0.002 to avoid z-fighting)
-      const offY = -pt.ny * 0.002;
-      const offZ = -pt.nz * 0.002;
+      // Underside face (silver foil side facing forward/up toward camera)
+      const uNx = -pt.nx;
+      const uNy = -pt.ny;
+      const uNz = pt.nz;
+      const offY = uNy * 0.0025;
+      const offZ = uNz * 0.0025;
       underPos.push(pt.x, pt.y + offY, pt.z + offZ);
       underUv.push(colFrac, rowFrac);
-      underNorm.push(-pt.nx, -pt.ny, -pt.nz);
+      underNorm.push(uNx, uNy, uNz);
     }
   }
 
@@ -466,16 +490,19 @@ export function createPeeledLidGeometries(radius = 1.0, opts = {}) {
 function mergeBufferGeometriesSimple(geos) {
   let totalPos = 0;
   let totalIdx = 0;
+  let hasUv = false;
   for (let k = 0; k < geos.length; k++) {
     const g = geos[k];
     if (!g || !g.attributes.position) continue;
     totalPos += g.attributes.position.count;
     if (g.index) totalIdx += g.index.count;
+    if (g.attributes.uv) hasUv = true;
   }
   if (totalPos === 0) return new THREE.BufferGeometry();
 
   const positions = new Float32Array(totalPos * 3);
   const normals = new Float32Array(totalPos * 3);
+  const uvs = hasUv ? new Float32Array(totalPos * 2) : null;
   const indices = new Uint32Array(totalIdx);
 
   let posOffset = 0;
@@ -490,6 +517,10 @@ function mergeBufferGeometriesSimple(geos) {
 
     if (g.attributes.normal) {
       normals.set(g.attributes.normal.array, posOffset * 3);
+    }
+
+    if (uvs && g.attributes.uv) {
+      uvs.set(g.attributes.uv.array, posOffset * 2);
     }
 
     if (g.index) {
@@ -508,6 +539,9 @@ function mergeBufferGeometriesSimple(geos) {
   const merged = new THREE.BufferGeometry();
   merged.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   merged.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  if (uvs) {
+    merged.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  }
   if (totalIdx > 0) {
     merged.setIndex(new THREE.BufferAttribute(indices, 1));
   }
@@ -579,7 +613,7 @@ export function createNoodleAssembly(rTop, halfH, opts = {}) {
   group.userData.isNoodleAssembly = true;
   const materials = [];
 
-  const noodleDepth = 0.22;
+  const noodleDepth = 0.145;
   const rLiningTop = rTop - 0.025;
   const rLiningBottom = rTop * 0.90;
   const liningH = noodleDepth + 0.02;
@@ -1147,40 +1181,41 @@ export function createRealProductModel(prod, opts = {}) {
 
         // Printed top material (opacity 1.0, depthWrite true, completely opaque)
         const lidTopMat = new THREE.MeshStandardMaterial({
-          roughness: 0.35,
-          metalness: 0.5,
+          roughness: 0.42,
+          metalness: 0.08,
           color: 0xffffff,
           map: lidTex,
           transparent: false,
           opacity: 1.0,
           depthWrite: true,
-          side: THREE.FrontSide,
-          envMapIntensity: 0.65
+          side: THREE.DoubleSide,
+          envMapIntensity: 0.55
         });
         lidTopMat.userData = { isSolid: true, baseOpacity: 1.0 };
         allMeshMats.push(lidTopMat);
 
         const peeledLidTopMesh = new THREE.Mesh(topGeo, lidTopMat);
-        peeledLidTopMesh.rotation.x = -Math.PI / 2;
+        // Rotate lid ~60° around Y so the peeled opening faces front-right and the 55% flat printed lid is clearly visible on the left-front!
+        peeledLidTopMesh.rotation.y = 1.05;
         peeledLidTopMesh.position.y = halfH + 0.005;
         root.add(peeledLidTopMesh);
 
-        // Underside metallic silver foil material (faces the camera when tilted up ~110°)
+        // Underside metallic silver foil material (faces the camera when tilted up)
         const foilUnderMat = new THREE.MeshStandardMaterial({
-          color: 0xd9d9d9,
-          roughness: 0.3,
-          metalness: 0.7,
+          color: 0xe6e8ec,
+          roughness: 0.28,
+          metalness: 0.65,
           transparent: false,
           opacity: 1.0,
           depthWrite: true,
-          side: THREE.FrontSide,
-          envMapIntensity: 0.85
+          side: THREE.DoubleSide,
+          envMapIntensity: 0.9
         });
         foilUnderMat.userData = { isSolid: true, baseOpacity: 1.0 };
         allMeshMats.push(foilUnderMat);
 
         const peeledLidUnderMesh = new THREE.Mesh(underGeo, foilUnderMat);
-        peeledLidUnderMesh.rotation.x = -Math.PI / 2;
+        peeledLidUnderMesh.rotation.y = 1.05;
         peeledLidUnderMesh.position.y = halfH + 0.005;
         root.add(peeledLidUnderMesh);
 

@@ -219,8 +219,8 @@ export function initHero3D() {
   const scene = new THREE.Scene();
 
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-  camera.position.set(0, 0.15, 7.6);
-  camera.lookAt(0, 0, 0);
+  camera.position.set(0, 0.48, 7.6);
+  camera.lookAt(0, -0.05, 0);
 
   const isMobileViewport = () => window.innerWidth <= 860;
   const getTargetDpr = () => Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1.5 : 2.0);
@@ -311,6 +311,10 @@ export function initHero3D() {
   let currentCenterModel = null;
   const centerModelCache = new Map();
   const companionItems = [];
+
+  // Forward tilt (~20°) so the top rim, 55% flat printed foil lid, 45% peeled flap, curly noodles & toppings are clearly visible
+  const BASE_PITCH = 20 * (Math.PI / 180);
+  const COMPANION_PITCH = 16 * (Math.PI / 180);
 
   let lastCanvasW = 0;
   let lastCanvasH = 0;
@@ -551,8 +555,14 @@ export function initHero3D() {
     worldGroup.position.set(targetWorldX, targetWorldY, 0);
     worldGroup.scale.set(1, 1, 1);
 
-    if (currentCenterModel && currentCenterModel.userData && currentCenterModel.userData.setTargetHeight) {
-      currentCenterModel.userData.setTargetHeight(currentCenterH);
+    if (currentCenterModel) {
+      if (currentCenterModel.userData && currentCenterModel.userData.setTargetHeight) {
+        currentCenterModel.userData.setTargetHeight(currentCenterH);
+      }
+      // Ensure BASE_PITCH is applied before bounding-box projection so tilted lid + body fit ~88% of stage without clipping
+      if (Math.abs(currentCenterModel.rotation.x) < 0.05) {
+        currentCenterModel.rotation.set(BASE_PITCH, 0, 0);
+      }
     }
 
     // Position grounded contact shadow right under the hero cup base
@@ -730,9 +740,6 @@ export function initHero3D() {
   let animationFrameId = null;
   const clock = new THREE.Clock();
 
-  // Forward tilt (~14°) so the top rim, peeled foil lid, curly noodles & toppings are clearly visible
-  const BASE_PITCH = 14 * (Math.PI / 180);
-
   function renderFrame(timeSec) {
     updateStagePlacement(false);
 
@@ -769,16 +776,16 @@ export function initHero3D() {
       fallbackSteam.userData.updateSteam(prefersReducedMotion ? 1.2 : timeSec, currentCenterH, themeState.isLight);
     }
 
-    // Subtle parallax & float on background companions
+    // Subtle parallax & float on background companions (also tilted forward ~16° to match hero angle)
     companionItems.forEach(({ mesh, slot }) => {
       if (prefersReducedMotion) {
-        mesh.rotation.set(0.12, slot.rotY, slot.rotZ);
+        mesh.rotation.set(COMPANION_PITCH, slot.rotY, slot.rotZ);
       } else {
         const t = timeSec * 0.9 + slot.phase;
         const bob = Math.sin(t) * (0.025 * currentCenterH);
         mesh.position.y = slot.relY * currentCenterH + bob;
         mesh.rotation.set(
-          0.14 - pointer.y * 0.15,
+          COMPANION_PITCH - pointer.y * 0.15,
           slot.rotY + Math.sin(t * 0.6) * 0.16 + pointer.x * 0.25,
           slot.rotZ
         );
